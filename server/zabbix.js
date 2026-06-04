@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 
 let _token = null;
-let _tokenCfg = null; // to detect config changes
+let _tokenCfg = null;
 
 function buildUrl(cfg) {
   const basePath = (cfg.path || '').replace(/\/+$/, '');
@@ -37,37 +37,49 @@ async function login(cfg) {
   return _token;
 }
 
-// Detect device category from Zabbix host templates/groups
-function detectCategory(host) {
+// Detect category: check user-defined zabbix_groups first, then regex fallback
+function detectCategory(host, categories) {
+  const hostGroups = (host.groups || []).map(g => g.name);
+
+  // Match against categories that have zabbix_groups configured (in sort_order)
+  for (const cat of categories) {
+    if (cat.zabbix_groups && cat.zabbix_groups.length > 0) {
+      const match = cat.zabbix_groups.some(zg =>
+        hostGroups.some(hg => hg.toLowerCase().includes(zg.toLowerCase()))
+      );
+      if (match) return cat.id;
+    }
+  }
+
+  // Regex fallback using name, groups, templates
   const name = (host.name || '').toUpperCase();
-  const groups = (host.groups || []).map(g => g.name.toUpperCase()).join(' ');
+  const groupStr = hostGroups.map(g => g.toUpperCase()).join(' ');
   const templates = (host.parentTemplates || []).map(t => t.name.toUpperCase()).join(' ');
-  const all = `${name} ${groups} ${templates}`;
+  const all = `${name} ${groupStr} ${templates}`;
+
   if (/WAVE|RADWIN|AIRFIBER|UBNT|MIKROTIK.*WAVE/i.test(all)) return 'wave';
   if (/CAMERA|CAM|CCTV|HIKVISION|DAHUA|AXIS/i.test(all)) return 'cam';
   if (/SWITCH|SW-|SW_|L2|L3|VLAN/i.test(all)) return 'sw';
   if (/AP-|AP_|WIFI|WI-FI|ACCESS.POINT|UNIFI|ARUBA/i.test(all)) return 'ap';
-  return 'sw'; // default
+
+  // Default to first category, or 'sw'
+  return categories[0]?.id || 'sw';
 }
 
-// Map Zabbix item keys to our metrics
 const ITEM_KEY_MAP = {
-  'icmppingsec':           { metric: 'latency', transform: v => parseFloat((v * 1000).toFixed(2)) },
-  'icmpping':              { metric: 'ping',    transform: v => parseInt(v) },
-  'system.uptime':         { metric: 'uptime',  transform: v => formatUptime(v) },
-  'net.if.in':             { metric: 'traffic_in' },
-  'net.if.out':            { metric: 'traffic_out' },
-  // Wireless
-  'rssi':                  { metric: 'signal' },
-  'signal':                { metric: 'signal' },
-  'tx.signal':             { metric: 'signal' },
-  'wireless.clients':      { metric: 'clients', transform: v => parseInt(v) },
-  'association.count':     { metric: 'clients', transform: v => parseInt(v) },
-  // Switch
-  'ifAdminStatus':         { metric: 'portsUp' },
-  'net.if.discovery':      { metric: 'ports' },
-  // Camera
-  'fps':                   { metric: 'fps',     transform: v => parseFloat(v) },
+  'icmppingsec':      { metric: 'latency', transform: v => parseFloat((v * 1000).toFixed(2)) },
+  'icmpping':         { metric: 'ping',    transform: v => parseInt(v) },
+  'system.uptime':    { metric: 'uptime',  transform: v => formatUptime(v) },
+  'net.if.in':        { metric: 'traffic_in' },
+  'net.if.out':       { metric: 'traffic_out' },
+  'rssi':             { metric: 'signal' },
+  'signal':           { metric: 'signal' },
+  'tx.signal':        { metric: 'signal' },
+  'wireless.clients': { metric: 'clients', transform: v => parseInt(v) },
+  'association.count':{ metric: 'clients', transform: v => parseInt(v) },
+  'ifAdminStatus':    { metric: 'portsUp' },
+  'net.if.discovery': { metric: 'ports' },
+  'fps':              { metric: 'fps',     transform: v => parseFloat(v) },
 };
 
 function formatUptime(seconds) {
@@ -77,7 +89,7 @@ function formatUptime(seconds) {
   return `${d}j ${h}h`;
 }
 
-async function getHosts(cfg) {
+async function getHosts(cfg, categories = []) {
   const url = buildUrl(cfg);
   const auth = await login(cfg);
 
@@ -85,28 +97,27 @@ async function getHosts(cfg) {
     output: ['hostid', 'name', 'status'],
     selectGroups: ['name'],
     selectParentTemplates: ['name'],
-    filter: { status: 0 }, // only enabled hosts
+    filter: { status: 0 },
   }, auth);
 
   if (!hosts.length) return [];
 
-  // Fetch items for all hosts in one call
   const hostIds = hosts.map(h => h.hostid);
-  const items = await zabbixCall(url, 'item.get', {
-    output: ['hostid', 'key_', 'lastvalue', 'units'],
-    hostids: hostIds,
-    monitored: true,
-    filter: { status: 0 },
-  }, auth);
 
-  // Fetch interfaces (IP)
-  const interfaces = await zabbixCall(url, 'hostinterface.get', {
-    output: ['hostid', 'ip'],
-    hostids: hostIds,
-    main: 1,
-  }, auth);
+  const [items, interfaces] = await Promise.all([
+    zabbixCall(url, 'item.get', {
+      output: ['hostid', 'key_', 'lastvalue', 'units'],
+      hostids: hostIds,
+      monitored: true,
+      filter: { status: 0 },
+    }, auth),
+    zabbixCall(url, 'hostinterface.get', {
+      output: ['hostid', 'ip'],
+      hostids: hostIds,
+      main: 1,
+    }, auth),
+  ]);
 
-  // Build lookup maps
   const itemsByHost = {};
   for (const item of items) {
     if (!itemsByHost[item.hostid]) itemsByHost[item.hostid] = [];
@@ -116,7 +127,7 @@ async function getHosts(cfg) {
   for (const iface of interfaces) ipByHost[iface.hostid] = iface.ip;
 
   return hosts.map(host => {
-    const category = detectCategory(host);
+    const category = detectCategory(host, categories);
     const hostItems = itemsByHost[host.hostid] || [];
     const metrics = {};
 
@@ -129,9 +140,8 @@ async function getHosts(cfg) {
       }
     }
 
-    // Ensure ping is boolean
     if (metrics.ping !== undefined) metrics.ping = metrics.ping === 1 || metrics.ping === '1';
-    else metrics.ping = true; // assume up if not monitored
+    else metrics.ping = true;
 
     return {
       id: `zbx_${host.hostid}`,
@@ -140,9 +150,19 @@ async function getHosts(cfg) {
       type: category,
       ip: ipByHost[host.hostid] || '',
       ...metrics,
-      status: 'ok', // will be computed by trigger evaluation
+      status: 'ok',
     };
   });
+}
+
+async function getGroups(cfg) {
+  const url = buildUrl(cfg);
+  const auth = await login(cfg);
+  const groups = await zabbixCall(url, 'hostgroup.get', {
+    output: ['name'],
+    real_hosts: true,
+  }, auth);
+  return groups.map(g => g.name).sort();
 }
 
 async function testConnection(cfg) {
@@ -151,4 +171,4 @@ async function testConnection(cfg) {
   return version;
 }
 
-module.exports = { getHosts, testConnection, login };
+module.exports = { getHosts, getGroups, testConnection, login };

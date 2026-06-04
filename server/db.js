@@ -4,15 +4,22 @@ const path = require('path');
 const DB_PATH = path.join(__dirname, '../db/netmap.db');
 const db = new Database(DB_PATH);
 
-// Perf pragmas
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// ── Schema ──────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS config (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS categories (
+    id           TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    color        TEXT NOT NULL DEFAULT '#378ADD',
+    icon         TEXT NOT NULL DEFAULT '?',
+    zabbix_groups TEXT NOT NULL DEFAULT '[]',
+    sort_order   INTEGER NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS device_positions (
@@ -66,38 +73,46 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_alert_history_fired  ON alert_history(fired_at DESC);
 `);
 
-// ── Default triggers ─────────────────────────────────────
+// ── Seed default categories ──────────────────────────────────
+const insertCat = db.prepare(`
+  INSERT OR IGNORE INTO categories (id, name, color, icon, zabbix_groups, sort_order)
+  VALUES (@id, @name, @color, @icon, @zabbix_groups, @sort_order)
+`);
+db.transaction(() => {
+  insertCat.run({ id:'wave', name:'Pont WAVE', color:'#378ADD', icon:'W', zabbix_groups:'[]', sort_order:0 });
+  insertCat.run({ id:'ap',   name:'AP WiFi',   color:'#1D9E75', icon:'A', zabbix_groups:'[]', sort_order:1 });
+  insertCat.run({ id:'sw',   name:'Switch',    color:'#BA7517', icon:'S', zabbix_groups:'[]', sort_order:2 });
+  insertCat.run({ id:'cam',  name:'Caméra',    color:'#888780', icon:'C', zabbix_groups:'[]', sort_order:3 });
+})();
+
+// ── Seed default triggers ────────────────────────────────────
 const insertTrig = db.prepare(`
   INSERT OR IGNORE INTO triggers (id, category, name, metric, op, threshold, unit, severity, enabled)
   VALUES (@id, @category, @name, @metric, @op, @threshold, @unit, @severity, @enabled)
 `);
+db.transaction(() => {
+  for (const t of [
+    { id:'w1', category:'wave', name:'Ping KO',        metric:'ping',    op:'==', threshold:0,   unit:'',    severity:'crit', enabled:1 },
+    { id:'w2', category:'wave', name:'Latence élevée', metric:'latency', op:'>',  threshold:15,  unit:'ms',  severity:'warn', enabled:1 },
+    { id:'w3', category:'wave', name:'Signal faible',  metric:'signal',  op:'<',  threshold:-80, unit:'dBm', severity:'warn', enabled:1 },
+    { id:'a1', category:'ap',   name:'Ping KO',        metric:'ping',    op:'==', threshold:0,   unit:'',    severity:'crit', enabled:1 },
+    { id:'a2', category:'ap',   name:'Latence élevée', metric:'latency', op:'>',  threshold:10,  unit:'ms',  severity:'warn', enabled:1 },
+    { id:'a3', category:'ap',   name:'Signal faible',  metric:'signal',  op:'<',  threshold:-75, unit:'dBm', severity:'warn', enabled:1 },
+    { id:'a4', category:'ap',   name:'Aucun client',   metric:'clients', op:'==', threshold:0,   unit:'',    severity:'warn', enabled:0 },
+    { id:'s1', category:'sw',   name:'Ping KO',              metric:'ping',    op:'==', threshold:0,  unit:'',   severity:'crit', enabled:1 },
+    { id:'s2', category:'sw',   name:'Latence élevée',       metric:'latency', op:'>',  threshold:5,  unit:'ms', severity:'warn', enabled:1 },
+    { id:'s3', category:'sw',   name:'Ports UP < seuil (%)', metric:'portsUp', op:'<',  threshold:50, unit:'%',  severity:'warn', enabled:1 },
+    { id:'c1', category:'cam',  name:'Ping KO',        metric:'ping',    op:'==', threshold:0,   unit:'',    severity:'crit', enabled:1 },
+    { id:'c2', category:'cam',  name:'FPS bas',        metric:'fps',     op:'<',  threshold:15,  unit:'fps', severity:'crit', enabled:1 },
+    { id:'c3', category:'cam',  name:'Latence élevée', metric:'latency', op:'>',  threshold:30,  unit:'ms',  severity:'warn', enabled:1 },
+  ]) insertTrig.run(t);
+})();
 
-const defaultTriggers = [
-  // WAVE
-  { id:'w1', category:'wave', name:'Ping KO',        metric:'ping',    op:'==', threshold:0,   unit:'',    severity:'crit', enabled:1 },
-  { id:'w2', category:'wave', name:'Latence élevée', metric:'latency', op:'>',  threshold:15,  unit:'ms',  severity:'warn', enabled:1 },
-  { id:'w3', category:'wave', name:'Signal faible',  metric:'signal',  op:'<',  threshold:-80, unit:'dBm', severity:'warn', enabled:1 },
-  // AP
-  { id:'a1', category:'ap',   name:'Ping KO',        metric:'ping',    op:'==', threshold:0,   unit:'',    severity:'crit', enabled:1 },
-  { id:'a2', category:'ap',   name:'Latence élevée', metric:'latency', op:'>',  threshold:10,  unit:'ms',  severity:'warn', enabled:1 },
-  { id:'a3', category:'ap',   name:'Signal faible',  metric:'signal',  op:'<',  threshold:-75, unit:'dBm', severity:'warn', enabled:1 },
-  { id:'a4', category:'ap',   name:'Aucun client',   metric:'clients', op:'==', threshold:0,   unit:'',    severity:'warn', enabled:0 },
-  // Switch
-  { id:'s1', category:'sw',   name:'Ping KO',              metric:'ping',    op:'==', threshold:0,  unit:'',  severity:'crit', enabled:1 },
-  { id:'s2', category:'sw',   name:'Latence élevée',       metric:'latency', op:'>',  threshold:5,  unit:'ms',severity:'warn', enabled:1 },
-  { id:'s3', category:'sw',   name:'Ports UP < seuil (%)', metric:'portsUp', op:'<',  threshold:50, unit:'%', severity:'warn', enabled:1 },
-  // Camera
-  { id:'c1', category:'cam',  name:'Ping KO',        metric:'ping',    op:'==', threshold:0,   unit:'',    severity:'crit', enabled:1 },
-  { id:'c2', category:'cam',  name:'FPS bas',        metric:'fps',     op:'<',  threshold:15,  unit:'fps', severity:'crit', enabled:1 },
-  { id:'c3', category:'cam',  name:'Latence élevée', metric:'latency', op:'>',  threshold:30,  unit:'ms',  severity:'warn', enabled:1 },
-];
+// ── Helpers ──────────────────────────────────────────────────
+function parseCat(row) {
+  return { ...row, zabbix_groups: JSON.parse(row.zabbix_groups) };
+}
 
-const insertMany = db.transaction(() => {
-  for (const t of defaultTriggers) insertTrig.run(t);
-});
-insertMany();
-
-// ── Prepared statements ──────────────────────────────────
 module.exports = {
   db,
 
@@ -110,6 +125,19 @@ module.exports = {
     db.prepare('INSERT OR REPLACE INTO config (key, value) VALUES (?,?)').run(key, JSON.stringify(value));
   },
 
+  // Categories
+  getAllCategories: () =>
+    db.prepare('SELECT * FROM categories ORDER BY sort_order, name').all().map(parseCat),
+  upsertCategory: (cat) => {
+    db.prepare(`INSERT INTO categories (id, name, color, icon, zabbix_groups, sort_order)
+      VALUES (@id, @name, @color, @icon, @zabbix_groups, @sort_order)
+      ON CONFLICT(id) DO UPDATE SET
+        name=excluded.name, color=excluded.color, icon=excluded.icon,
+        zabbix_groups=excluded.zabbix_groups, sort_order=excluded.sort_order`)
+      .run({ ...cat, zabbix_groups: JSON.stringify(cat.zabbix_groups || []) });
+  },
+  deleteCategory: (id) => db.prepare('DELETE FROM categories WHERE id=?').run(id),
+
   // Positions
   getAllPositions: () => db.prepare('SELECT * FROM device_positions').all(),
   upsertPosition: (device_id, x, y) => {
@@ -118,6 +146,8 @@ module.exports = {
       ON CONFLICT(device_id) DO UPDATE SET x=excluded.x, y=excluded.y, updated_at=unixepoch()`)
       .run(device_id, x, y);
   },
+  deleteDevicePosition: (device_id) =>
+    db.prepare('DELETE FROM device_positions WHERE device_id=?').run(device_id),
 
   // Groups
   getAllGroups: () => {
@@ -126,21 +156,19 @@ module.exports = {
     return groups.map(g => ({ ...g, deviceIds: getDevices.all(g.id).map(r => r.device_id) }));
   },
   createGroup: (id, name, x, y, deviceIds) => {
-    const tx = db.transaction(() => {
+    db.transaction(() => {
       db.prepare('INSERT INTO groups (id, name, x, y) VALUES (?,?,?,?)').run(id, name, x, y);
       for (const did of deviceIds)
         db.prepare('INSERT INTO group_devices (group_id, device_id) VALUES (?,?)').run(id, did);
-    });
-    tx();
+    })();
   },
   updateGroup: (id, name, x, y, deviceIds) => {
-    const tx = db.transaction(() => {
+    db.transaction(() => {
       db.prepare('UPDATE groups SET name=?, x=?, y=?, updated_at=unixepoch() WHERE id=?').run(name, x, y, id);
       db.prepare('DELETE FROM group_devices WHERE group_id=?').run(id);
       for (const did of deviceIds)
         db.prepare('INSERT INTO group_devices (group_id, device_id) VALUES (?,?)').run(id, did);
-    });
-    tx();
+    })();
   },
   deleteGroup: (id) => db.prepare('DELETE FROM groups WHERE id=?').run(id),
 
@@ -155,21 +183,8 @@ module.exports = {
         severity=excluded.severity, enabled=excluded.enabled`).run(t);
   },
   deleteTrigger: (id) => db.prepare('DELETE FROM triggers WHERE id=?').run(id),
-  saveTriggers: (triggers) => {
-    const tx = db.transaction(() => {
-      for (const t of triggers) {
-        db.prepare(`INSERT INTO triggers (id, category, name, metric, op, threshold, unit, severity, enabled)
-          VALUES (@id, @category, @name, @metric, @op, @threshold, @unit, @severity, @enabled)
-          ON CONFLICT(id) DO UPDATE SET
-            name=excluded.name, metric=excluded.metric, op=excluded.op,
-            threshold=excluded.threshold, unit=excluded.unit,
-            severity=excluded.severity, enabled=excluded.enabled`).run(t);
-      }
-    });
-    tx();
-  },
 
-  // Alert history
+  // Alerts
   addAlert: (device_id, device_name, trigger_id, trigger_name, severity, value) => {
     return db.prepare(`INSERT INTO alert_history (device_id, device_name, trigger_id, trigger_name, severity, value)
       VALUES (?,?,?,?,?,?)`).run(device_id, device_name, trigger_id, trigger_name, severity, value ? String(value) : null);
@@ -180,10 +195,10 @@ module.exports = {
   getAlerts: ({ limit = 200, device_id, severity, unresolved_only, days } = {}) => {
     let q = 'SELECT * FROM alert_history WHERE 1=1';
     const params = [];
-    if (device_id)      { q += ' AND device_id=?';       params.push(device_id); }
-    if (severity)       { q += ' AND severity=?';         params.push(severity); }
-    if (unresolved_only){ q += ' AND resolved_at IS NULL'; }
-    if (days)           { q += ' AND fired_at >= unixepoch()-?'; params.push(days*86400); }
+    if (device_id)       { q += ' AND device_id=?';        params.push(device_id); }
+    if (severity)        { q += ' AND severity=?';          params.push(severity); }
+    if (unresolved_only) { q += ' AND resolved_at IS NULL'; }
+    if (days)            { q += ' AND fired_at >= unixepoch()-?'; params.push(days * 86400); }
     q += ' ORDER BY fired_at DESC LIMIT ?';
     params.push(limit);
     return db.prepare(q).all(...params);
