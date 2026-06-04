@@ -1,0 +1,16 @@
+{
+  "name": "netmap",
+  "version": "1.0.0",
+  "description": "Network monitoring map with Zabbix integration",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "better-sqlite3": "^9.4.3",
+    "node-fetch": "^2.7.0",
+    "cors": "^2.8.5"
+  }
+}
