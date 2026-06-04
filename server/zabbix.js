@@ -4,7 +4,8 @@ let _token = null;
 let _tokenCfg = null; // to detect config changes
 
 function buildUrl(cfg) {
-  return `${cfg.proto}://${cfg.host}:${cfg.port}${cfg.path}/api_jsonrpc.php`;
+  const basePath = (cfg.path || '').replace(/\/+$/, '');
+  return `${cfg.proto}://${cfg.host}:${cfg.port}${basePath}/api_jsonrpc.php`;
 }
 
 async function zabbixCall(url, method, params, auth = null) {
