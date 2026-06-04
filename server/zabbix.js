@@ -32,7 +32,14 @@ async function login(cfg) {
   const url = buildUrl(cfg);
   const cfgKey = `${url}|${cfg.user}`;
   if (_token && _tokenCfg === cfgKey) return _token;
-  _token = await zabbixCall(url, 'user.login', { user: cfg.user, password: cfg.pass });
+  // Zabbix < 5.4 uses "user", 5.4+ uses "username"
+  try {
+    _token = await zabbixCall(url, 'user.login', { username: cfg.user, password: cfg.pass });
+  } catch (e) {
+    if (e.message.includes('-32602')) {
+      _token = await zabbixCall(url, 'user.login', { user: cfg.user, password: cfg.pass });
+    } else throw e;
+  }
   _tokenCfg = cfgKey;
   return _token;
 }
