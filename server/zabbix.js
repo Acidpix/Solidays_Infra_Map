@@ -16,7 +16,13 @@ async function zabbixCall(url, method, params, auth = null) {
     body: JSON.stringify(body),
     timeout: 10000,
   });
-  const json = await res.json();
+  const text = await res.text();
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`Zabbix API at ${url} returned non-JSON (HTTP ${res.status}): ${text.slice(0, 200)}`);
+  }
   if (json.error) throw new Error(`Zabbix error ${json.error.code}: ${json.error.data}`);
   return json.result;
 }

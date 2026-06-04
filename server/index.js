@@ -19,8 +19,17 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🗺  NetMap running → http://0.0.0.0:${PORT}`);
   console.log(`   DB  : ${path.join(__dirname, '../db/netmap.db')}`);
   console.log(`   API : http://0.0.0.0:${PORT}/api\n`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Set PORT env var to use a different port.`);
+  } else {
+    console.error('Server error:', err);
+  }
+  process.exit(1);
 });
