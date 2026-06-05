@@ -9,16 +9,17 @@
 :root{--bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--bg4:#252d3f;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.13);--border3:rgba(255,255,255,0.22);--text:#e8eaf0;--text2:#8b92a8;--text3:#545d72;--ok:#1D9E75;--warn:#EF9F27;--crit:#E24B4A;--r:6px}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;overflow:hidden}
 #app{display:flex;flex-direction:column;height:100vh}
-#topbar{display:flex;align-items:center;gap:8px;padding:0 14px;height:48px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
-.logo{font-size:15px;font-weight:600;display:flex;align-items:center;gap:7px;margin-right:6px}
+#topbar{display:flex;align-items:center;gap:10px;padding:0 14px;height:52px;background:linear-gradient(90deg,#17122f,#1f1b57);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.logo{font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;margin-right:6px;color:var(--text)}
+.logo img{height:24px;width:auto;display:block}
 .legend{display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap}
 .leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)}
 .leg-sq{width:10px;height:10px;border-radius:2px;flex-shrink:0}
 .sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
 .tb-btn{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:var(--r);border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:12px;cursor:pointer;transition:background .15s,color .15s,border-color .15s;white-space:nowrap}
 .tb-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--border3)}
-.tb-btn.active{background:rgba(55,138,221,0.15);border-color:#378ADD;color:#378ADD}
-.tb-btn.gon{background:rgba(239,159,39,0.15);border-color:var(--warn);color:var(--warn)}
+.tb-btn.active{background:rgba(159,108,255,0.16);border-color:var(--secondary);color:var(--secondary)}
+.tb-btn.gon{background:rgba(247,195,71,0.18);border-color:var(--warn);color:var(--warn)}
 /* Main layout */
 #main{display:flex;flex:1;overflow:hidden}
 /* Sidebar */
@@ -134,8 +135,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe 
 .mb{padding:6px 14px;border-radius:var(--r);font-size:12px;cursor:pointer;border:1px solid var(--border2)}
 .mb.ca{background:transparent;color:var(--text2)}
 .mb.ca:hover{background:var(--bg3)}
-.mb.co{background:#378ADD;color:#fff;border-color:#378ADD}
-.mb.co:hover{opacity:.85}
+.mb.co{background:var(--secondary);color:#fff;border-color:var(--secondary)}
+.mb.co:hover{opacity:.92}
 /* Category modal */
 .cat-mo{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;width:420px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
 .cat-moh{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
@@ -256,8 +257,8 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 <div id="app">
   <div id="topbar">
     <div class="logo">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="3"/><circle cx="5" cy="19" r="3"/><circle cx="19" cy="19" r="3"/><line x1="12" y1="8" x2="5" y2="16"/><line x1="12" y1="8" x2="19" y2="16"/></svg>
-      NetMap
+      <img src="https://www.solidays.org/wp-content/uploads/2023/11/s24_logo2l_sansdate.png" alt="Soliday Logo">
+      Soliday Map
     </div>
     <div class="legend" id="legend-wrap"></div>
     <div class="sep"></div>
@@ -412,6 +413,8 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
           <div class="tr"><div><div class="trl">Labels des équipements</div><div class="trd">Nom sous chaque pastille</div></div><label class="tog"><input type="checkbox" id="dlbl" checked><span class="tsl"></span></label></div>
           <div class="tr"><div><div class="trl">Halos d'alerte animés</div><div class="trd">Pulsation sur les défauts</div></div><label class="tog"><input type="checkbox" id="dhalo" checked><span class="tsl"></span></label></div>
           <div class="tr"><div><div class="trl">Grille de fond</div><div class="trd">Quadrillage de positionnement</div></div><label class="tog"><input type="checkbox" id="dgrid" checked><span class="tsl"></span></label></div>
+          <div class="tr"><div style="flex:1"><div class="trl">Fond de carte</div><div class="trd">Importer une image personnalisée</div></div><div style="display:flex;gap:8px;align-items:center"><input type="file" id="bg-upload" accept="image/*" style="display:none"><button class="mb ca" id="bg-upload-btn" type="button">Uploader</button><button class="mb ca" id="bg-clear" type="button">Supprimer</button></div></div>
+          <div class="tr"><div style="flex:1"><div class="trl">État du fond</div><div class="trd" id="bg-status">Aucun fond chargé</div></div></div>
         </div>
         <div class="sps"><div class="spst">Couleurs des catégories</div><div id="clred"></div></div>
       </div>
@@ -446,12 +449,19 @@ let devices=[],groups=[];
 let scale=1,offX=0,offY=0,dragging=false,dragStart=null,dragObj=null;
 let locked=false,hovered=null,pulseT=0,groupMode=false,selGrp=new Set();
 let activeGroup=null,mdAt=null;
+const bgStorageKey='solidayMap.background';
+let bgImage=null;
 let triggersData={};
 let alertFilter='all';
 let sidebarOpen=true;
 let dragSb=null;   // sidebar drag state {id, dev}
 let ctxTarget=null;
 let catModalId=null; // null=new, string=edit existing
+
+function updateBgStatus(){const status=document.getElementById('bg-status');if(!status)return;status.textContent=bgImage?'Fond de carte chargé':'Aucun fond chargé';}
+function setBgImage(src){const img=new Image();img.onload=()=>{bgImage=img;localStorage.setItem(bgStorageKey,src);updateBgStatus();};img.src=src;}
+function clearBgImage(){bgImage=null;localStorage.removeItem(bgStorageKey);updateBgStatus();}
+function loadBgImage(){const src=localStorage.getItem(bgStorageKey);if(src){setBgImage(src);}}
 
 /* ── TYPES & Legend ────────────────────────────────────────── */
 function initTypes(cats){cats.forEach(c=>{TYPES[c.id]={label:c.name,color:c.color,icon:c.icon||c.name.charAt(0).toUpperCase()};});}
@@ -473,6 +483,7 @@ function gBB(g){const pad=GPAD(),dsz=DIG();const devs=g.deviceIds.map(id=>device
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
+  if(bgImage){ctx.save();ctx.globalAlpha=0.95;ctx.setTransform(scale,0,0,scale,offX,offY);const iw=bgImage.width,ih=bgImage.height,sw=canvas.width/scale,sh=canvas.height/scale,scaleImg=Math.max(sw/iw,sh/ih),iw2=iw*scaleImg,ih2=ih*scaleImg;ctx.drawImage(bgImage,(sw-iw2)/2,(sh-ih2)/2,iw2,ih2);ctx.restore();ctx.setTransform(1,0,0,1,0,0);}
   if(disp.grid){ctx.save();ctx.strokeStyle='rgba(255,255,255,0.03)';ctx.lineWidth=1;const gs=50*scale,ox=offX%gs,oy=offY%gs;for(let x=ox;x<canvas.width;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}for(let y=oy;y<canvas.height;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}ctx.restore();}
   const SZ=DSZ(),half=SZ/2,CR=Math.max(2,3*scale);
   for(const g of groups){
@@ -782,6 +793,7 @@ async function openSettings(){
   document.getElementById('dlbl').checked=d.labels!==false;
   document.getElementById('dhalo').checked=d.halos!==false;
   document.getElementById('dgrid').checked=d.grid!==false;
+  updateBgStatus();
   buildClrEd();
   triggersData=await fetch(`${API}/triggers`).then(r=>r.json());
   // Ensure all categories have an entry
@@ -794,6 +806,9 @@ document.getElementById('btn-settings').addEventListener('click',openSettings);
 document.getElementById('spX').addEventListener('click',closeSettings);
 document.getElementById('spca').addEventListener('click',closeSettings);
 document.getElementById('ov-settings').addEventListener('click',e=>{if(e.target.id==='ov-settings')closeSettings();});
+document.getElementById('bg-upload-btn').addEventListener('click',()=>document.getElementById('bg-upload').click());
+document.getElementById('bg-upload').addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{setBgImage(ev.target.result);};reader.readAsDataURL(file);e.target.value='';});
+document.getElementById('bg-clear').addEventListener('click',()=>{clearBgImage();});
 document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
 document.getElementById('ztest').addEventListener('click',async()=>{const cfg={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value,path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value};const res=document.getElementById('ztres');res.style.color='var(--text3)';res.textContent='Connexion…';try{const r=await fetch(`${API}/config/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}).then(r=>r.json());if(r.ok){res.style.color='var(--ok)';res.textContent=`✓ Zabbix API v${r.version}`;}else{res.style.color='var(--crit)';res.textContent=`✗ ${r.error}`;}}catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}});
 document.getElementById('spsv').addEventListener('click',async()=>{
@@ -872,6 +887,7 @@ document.getElementById('btn-ref').addEventListener('click',apiRef);
 /* ── Init ──────────────────────────────────────────────────── */
 window.addEventListener('resize',resize);
 resize();
+loadBgImage();
 // Mark sidebar button as active initially
 document.getElementById('btn-sidebar').classList.add('active');
 
