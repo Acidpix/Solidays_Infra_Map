@@ -7,7 +7,9 @@ const path = require('path');
 const fs = require('fs');
 
 const DATA_DIR = path.join(__dirname, '../data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+function ensureDataDir() {
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (_) {}
+}
 
 function uuid() { return require('crypto').randomUUID(); }
 
@@ -232,10 +234,10 @@ router.patch('/alerts/:id/resolve', (req, res) => {
 
 /* ── MAP BACKGROUND ───────────────────────────────────────── */
 function bgFile() {
-  const files = fs.existsSync(DATA_DIR)
-    ? fs.readdirSync(DATA_DIR).filter(f => f.startsWith('background.'))
-    : [];
-  return files.length ? path.join(DATA_DIR, files[0]) : null;
+  try {
+    const files = fs.readdirSync(DATA_DIR).filter(f => f.startsWith('background.'));
+    return files.length ? path.join(DATA_DIR, files[0]) : null;
+  } catch (_) { return null; }
 }
 
 router.get('/map/background', (req, res) => {
@@ -252,15 +254,20 @@ router.post('/map/background', (req, res) => {
   const [, mime, b64] = match;
   const extMap = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
   const ext = extMap[mime] || 'bin';
-  // Remove any existing background
-  fs.readdirSync(DATA_DIR).filter(f => f.startsWith('background.')).forEach(f => fs.unlinkSync(path.join(DATA_DIR, f)));
-  fs.writeFileSync(path.join(DATA_DIR, `background.${ext}`), Buffer.from(b64, 'base64'));
-  res.json({ ok: true });
+  try {
+    ensureDataDir();
+    fs.readdirSync(DATA_DIR).filter(f => f.startsWith('background.')).forEach(f => fs.unlinkSync(path.join(DATA_DIR, f)));
+    fs.writeFileSync(path.join(DATA_DIR, `background.${ext}`), Buffer.from(b64, 'base64'));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 router.delete('/map/background', (req, res) => {
-  if (fs.existsSync(DATA_DIR))
+  try {
     fs.readdirSync(DATA_DIR).filter(f => f.startsWith('background.')).forEach(f => fs.unlinkSync(path.join(DATA_DIR, f)));
+  } catch (_) {}
   res.json({ ok: true });
 });
 
