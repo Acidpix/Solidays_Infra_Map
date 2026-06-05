@@ -3,6 +3,11 @@ const router = express.Router();
 const db = require('./db');
 const zabbix = require('./zabbix');
 const { evaluateAll } = require('./triggers');
+const path = require('path');
+const fs = require('fs');
+
+const DATA_DIR = path.join(__dirname, '../data');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 function uuid() { return require('crypto').randomUUID(); }
 
@@ -222,6 +227,40 @@ router.get('/alerts', (req, res) => {
 
 router.patch('/alerts/:id/resolve', (req, res) => {
   db.resolveAlert(parseInt(req.params.id));
+  res.json({ ok: true });
+});
+
+/* ── MAP BACKGROUND ───────────────────────────────────────── */
+function bgFile() {
+  const files = fs.existsSync(DATA_DIR)
+    ? fs.readdirSync(DATA_DIR).filter(f => f.startsWith('background.'))
+    : [];
+  return files.length ? path.join(DATA_DIR, files[0]) : null;
+}
+
+router.get('/map/background', (req, res) => {
+  const file = bgFile();
+  if (!file) return res.status(404).json({ error: 'No background' });
+  res.sendFile(file);
+});
+
+router.post('/map/background', (req, res) => {
+  const { data } = req.body;
+  if (!data || !data.startsWith('data:')) return res.status(400).json({ error: 'Invalid data URL' });
+  const match = data.match(/^data:([^;]+);base64,(.+)$/s);
+  if (!match) return res.status(400).json({ error: 'Invalid format' });
+  const [, mime, b64] = match;
+  const extMap = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg' };
+  const ext = extMap[mime] || 'bin';
+  // Remove any existing background
+  fs.readdirSync(DATA_DIR).filter(f => f.startsWith('background.')).forEach(f => fs.unlinkSync(path.join(DATA_DIR, f)));
+  fs.writeFileSync(path.join(DATA_DIR, `background.${ext}`), Buffer.from(b64, 'base64'));
+  res.json({ ok: true });
+});
+
+router.delete('/map/background', (req, res) => {
+  if (fs.existsSync(DATA_DIR))
+    fs.readdirSync(DATA_DIR).filter(f => f.startsWith('background.')).forEach(f => fs.unlinkSync(path.join(DATA_DIR, f)));
   res.json({ ok: true });
 });
 
