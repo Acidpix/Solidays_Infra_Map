@@ -47,7 +47,7 @@ async function login(cfg) {
 
 // Assign category solely by zabbix_groups configuration
 function detectCategory(host, categories) {
-  const hostGroups = (host.groups || []).map(g => g.name);
+  const hostGroups = (host.hostgroups || host.groups || []).map(g => g.name);
   for (const cat of categories) {
     if (cat.zabbix_groups && cat.zabbix_groups.length > 0) {
       const match = cat.zabbix_groups.some(zg =>
@@ -88,10 +88,15 @@ async function getHosts(cfg, categories = []) {
 
   const hosts = await zabbixCall(url, 'host.get', {
     output: ['hostid', 'name', 'status'],
-    selectGroups: ['name'],
-    selectParentTemplates: ['name'],
+    selectHostGroups: ['name'],
     filter: { status: 0 },
   }, auth);
+
+  // Debug: log groups of first host to verify field name
+  if (hosts.length > 0) {
+    const h = hosts[0];
+    console.log(`[Zabbix] Host sample "${h.name}" groups:`, h.hostgroups || h.groups || '(empty)');
+  }
 
   if (!hosts.length) return [];
 
