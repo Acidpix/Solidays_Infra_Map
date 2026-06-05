@@ -10,10 +10,11 @@ function buildUrl(cfg) {
 
 async function zabbixCall(url, method, params, auth = null) {
   const body = { jsonrpc: '2.0', method, params, id: 1 };
-  if (auth) body.auth = auth;
+  const headers = { 'Content-Type': 'application/json' };
+  if (auth) headers['Authorization'] = `Bearer ${auth}`;
   const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
     timeout: 10000,
   });
