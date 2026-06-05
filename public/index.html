@@ -422,6 +422,7 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
           <div class="tr"><div style="flex:1"><div class="trl">Échelle des icônes</div><div class="trd">Taille des pastilles par rapport au plan</div></div><div style="display:flex;gap:8px;align-items:center"><input type="range" id="icon-scale" min="0.25" max="2.5" step="0.05" style="width:100px;accent-color:#378ADD"><span id="icon-scale-val" style="min-width:38px;font-size:12px;color:var(--text2);text-align:right">100%</span></div></div>
           <div class="tr"><div style="flex:1"><div class="trl">Fond de carte</div><div class="trd">Importer une image personnalisée</div></div><div style="display:flex;gap:8px;align-items:center"><input type="file" id="bg-upload" accept="image/*" style="display:none"><button class="mb ca" id="bg-upload-btn" type="button">Uploader</button><button class="mb ca" id="bg-clear" type="button">Supprimer</button></div></div>
           <div class="tr"><div style="flex:1"><div class="trl">État du fond</div><div class="trd" id="bg-status">Aucun fond chargé</div></div></div>
+          <div class="tr"><div><div class="trl">Fond de carte clair</div><div class="trd">Textes et grille en sombre (pour plan blanc)</div></div><label class="tog"><input type="checkbox" id="dmaplight"><span class="tsl"></span></label></div>
         </div>
         <div class="sps"><div class="spst">Couleurs des catégories</div><div id="clred"></div></div>
       </div>
@@ -456,6 +457,7 @@ let devices=[],groups=[];
 let scale=1,offX=0,offY=0,dragging=false,dragStart=null,dragObj=null;
 let iconScale=parseFloat(localStorage.getItem('solidayMap.iconScale')||'1');
 let lightMode=localStorage.getItem('solidayMap.theme')==='light';
+let mapLight=localStorage.getItem('solidayMap.mapLight')==='1';
 let locked=false,hovered=null,pulseT=0,groupMode=false,selGrp=new Set();
 let activeGroup=null,mdAt=null;
 let bgImage=null;
@@ -493,7 +495,7 @@ function gBB(g){const pad=GPAD(),dsz=DIG();const devs=g.deviceIds.map(id=>device
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   if(bgImage){ctx.save();ctx.globalAlpha=0.95;ctx.setTransform(scale,0,0,scale,offX,offY);const iw=bgImage.width,ih=bgImage.height,sw=canvas.width,sh=canvas.height,scaleImg=Math.max(sw/iw,sh/ih),iw2=iw*scaleImg,ih2=ih*scaleImg;ctx.drawImage(bgImage,(sw-iw2)/2,(sh-ih2)/2,iw2,ih2);ctx.restore();ctx.setTransform(1,0,0,1,0,0);}
-  if(disp.grid){ctx.save();ctx.strokeStyle=lightMode?'rgba(0,0,0,0.06)':'rgba(255,255,255,0.03)';ctx.lineWidth=1;const gs=50*scale,ox=offX%gs,oy=offY%gs;for(let x=ox;x<canvas.width;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}for(let y=oy;y<canvas.height;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}ctx.restore();}
+  if(disp.grid){ctx.save();ctx.strokeStyle=mapLight?'rgba(0,0,0,0.08)':'rgba(255,255,255,0.03)';ctx.lineWidth=1;const gs=50*scale,ox=offX%gs,oy=offY%gs;for(let x=ox;x<canvas.width;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}for(let y=oy;y<canvas.height;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}ctx.restore();}
   const SZ=DSZ(),half=SZ/2,CR=Math.max(2,3*scale)*iconScale;
   for(const g of groups){
     const st=gSt(g),bb=gBB(g);const{x:bx,y:by,w:bw,h:bh,cols,cellSz,pad,devs,cx,cy}=bb;
@@ -503,7 +505,7 @@ function draw(){
     const iHG=hovered&&hovered.type==='group'&&hovered.ref===g;
     if(disp.halos&&(st==='crit'||st==='warn')){const p=0.5+0.5*Math.sin(pulseT*(st==='crit'?3:1.5));const p2=6+p*10;rr(bx-p2,by-p2,bw+p2*2,bh+p2*2,gcr+5);ctx.fillStyle=hexA(gc,0.15+0.12*p);ctx.fill();ctx.strokeStyle=hexA(gc,0.45+0.3*p);ctx.lineWidth=2;ctx.stroke();}
     rr(bx,by,bw,bh,gcr);ctx.fillStyle=hexA(gc,0.1);ctx.fill();ctx.strokeStyle=hexA(gc,iHG?0.9:0.45);ctx.lineWidth=iHG?2:1.5;ctx.stroke();
-    ctx.fillStyle=lightMode?'rgba(20,25,40,0.9)':'rgba(220,227,245,0.85)';ctx.font=`600 ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(g.name,cx,by+Math.max(4,5*scale)*iconScale);
+    ctx.fillStyle=mapLight?'rgba(20,25,40,0.9)':'rgba(220,227,245,0.85)';ctx.font=`600 ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(g.name,cx,by+Math.max(4,5*scale)*iconScale);
     const lH=Math.max(14,18*scale)*iconScale,cTop=by+pad+lH;
     for(let i=0;i<devs.length;i++){const d=devs[i],col=i%cols,row=Math.floor(i/cols);const dx=bx+pad+col*cellSz+dsz/2,dy=cTop+row*cellSz+dsz/2;const t=TYPES[d.type]||{color:'#666'},dcr=Math.max(1.5,2*scale)*iconScale;
       if(disp.halos&&(d.status==='crit'||d.status==='warn')){const p=0.5+0.5*Math.sin(pulseT*(d.status==='crit'?3.2:1.8));const hp=2+p*3;rr(dx-dh-hp,dy-dh-hp,dsz+hp*2,dsz+hp*2,dcr+2);ctx.fillStyle=hexA(d.status==='crit'?'#E24B4A':'#EF9F27',0.25+0.15*p);ctx.fill();}
@@ -517,7 +519,7 @@ function draw(){
     rr(sx-half,sy-half,SZ,SZ,CR);ctx.fillStyle=t.color;ctx.fill();if(iH){ctx.strokeStyle='rgba(255,255,255,0.85)';ctx.lineWidth=2;ctx.stroke();}
     ctx.fillStyle='rgba(255,255,255,0.92)';ctx.font=`bold ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(devIcon(d),sx,sy);
     const dr=Math.max(3,4*scale)*iconScale;ctx.beginPath();ctx.arc(sx+half,sy-half,dr,0,Math.PI*2);ctx.fillStyle=SDOT[d.status];ctx.fill();ctx.strokeStyle='#0f1117';ctx.lineWidth=1.5;ctx.stroke();
-    if(disp.labels&&scale>0.45){ctx.fillStyle=lightMode?'rgba(30,35,60,0.8)':'rgba(200,207,225,0.8)';ctx.font=`${Math.max(9,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(d.name,sx,sy+half+4*scale);}
+    if(disp.labels&&scale>0.45){ctx.fillStyle=mapLight?'rgba(20,25,50,0.85)':'rgba(200,207,225,0.8)';ctx.font=`${Math.max(9,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(d.name,sx,sy+half+4*scale);}
     if(groupMode&&selGrp.has(d.id)){rr(sx-half-3,sy-half-3,SZ+6,SZ+6,CR+2);ctx.strokeStyle='#EF9F27';ctx.lineWidth=2;ctx.stroke();}}
   const onMap=devices.filter(d=>d.onMap);
   document.getElementById('st').textContent=`${onMap.length}/${devices.length} sur la carte · ${groups.length} groupes`;
@@ -803,6 +805,7 @@ async function openSettings(){
   document.getElementById('dhalo').checked=d.halos!==false;
   document.getElementById('dgrid').checked=d.grid!==false;
   updateBgStatus();
+  document.getElementById('dmaplight').checked=mapLight;
   document.getElementById('icon-scale').value=iconScale;
   document.getElementById('icon-scale-val').textContent=Math.round(iconScale*100)+'%';
   buildClrEd();
@@ -833,6 +836,8 @@ document.getElementById('spsv').addEventListener('click',async()=>{
   await fetch(`${API}/triggers`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(fl)});
   iconScale=parseFloat(document.getElementById('icon-scale').value)||1;
   localStorage.setItem('solidayMap.iconScale',iconScale);
+  mapLight=document.getElementById('dmaplight').checked;
+  localStorage.setItem('solidayMap.mapLight',mapLight?'1':'0');
   disp=d;lgnd();buildSidebar();
   const b=document.getElementById('bsv');b.classList.add('on');setTimeout(()=>b.classList.remove('on'),2500);
 });
