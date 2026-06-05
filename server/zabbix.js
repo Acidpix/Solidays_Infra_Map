@@ -45,11 +45,9 @@ async function login(cfg) {
   return _token;
 }
 
-// Detect category: check user-defined zabbix_groups first, then regex fallback
+// Assign category solely by zabbix_groups configuration
 function detectCategory(host, categories) {
   const hostGroups = (host.groups || []).map(g => g.name);
-
-  // Match against categories that have zabbix_groups configured (in sort_order)
   for (const cat of categories) {
     if (cat.zabbix_groups && cat.zabbix_groups.length > 0) {
       const match = cat.zabbix_groups.some(zg =>
@@ -58,20 +56,7 @@ function detectCategory(host, categories) {
       if (match) return cat.id;
     }
   }
-
-  // Regex fallback using name, groups, templates
-  const name = (host.name || '').toUpperCase();
-  const groupStr = hostGroups.map(g => g.toUpperCase()).join(' ');
-  const templates = (host.parentTemplates || []).map(t => t.name.toUpperCase()).join(' ');
-  const all = `${name} ${groupStr} ${templates}`;
-
-  if (/WAVE|RADWIN|AIRFIBER|UBNT|MIKROTIK.*WAVE/i.test(all)) return 'wave';
-  if (/CAMERA|CAM|CCTV|HIKVISION|DAHUA|AXIS/i.test(all)) return 'cam';
-  if (/SWITCH|SW-|SW_|L2|L3|VLAN/i.test(all)) return 'sw';
-  if (/AP-|AP_|WIFI|WI-FI|ACCESS.POINT|UNIFI|ARUBA/i.test(all)) return 'ap';
-
-  // Default to first category, or 'sw'
-  return categories[0]?.id || 'sw';
+  return null; // non classé
 }
 
 const ITEM_KEY_MAP = {
@@ -155,7 +140,7 @@ async function getHosts(cfg, categories = []) {
       id: `zbx_${host.hostid}`,
       zabbix_id: host.hostid,
       name: host.name,
-      type: category,
+      type: category || 'uncat',
       ip: ipByHost[host.hostid] || '',
       ...metrics,
       status: 'ok',

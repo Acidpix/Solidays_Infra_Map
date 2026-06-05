@@ -79,10 +79,11 @@ const insertCat = db.prepare(`
   VALUES (@id, @name, @color, @icon, @zabbix_groups, @sort_order)
 `);
 db.transaction(() => {
-  insertCat.run({ id:'wave', name:'Pont WAVE', color:'#378ADD', icon:'W', zabbix_groups:'[]', sort_order:0 });
-  insertCat.run({ id:'ap',   name:'AP WiFi',   color:'#1D9E75', icon:'A', zabbix_groups:'[]', sort_order:1 });
-  insertCat.run({ id:'sw',   name:'Switch',    color:'#BA7517', icon:'S', zabbix_groups:'[]', sort_order:2 });
-  insertCat.run({ id:'cam',  name:'Caméra',    color:'#888780', icon:'C', zabbix_groups:'[]', sort_order:3 });
+  insertCat.run({ id:'wave',  name:'Pont WAVE',  color:'#378ADD', icon:'W', zabbix_groups:'[]', sort_order:0 });
+  insertCat.run({ id:'ap',    name:'AP WiFi',    color:'#1D9E75', icon:'A', zabbix_groups:'[]', sort_order:1 });
+  insertCat.run({ id:'sw',    name:'Switch',     color:'#BA7517', icon:'S', zabbix_groups:'[]', sort_order:2 });
+  insertCat.run({ id:'cam',   name:'Caméra',     color:'#888780', icon:'C', zabbix_groups:'[]', sort_order:3 });
+  insertCat.run({ id:'uncat', name:'Non classé', color:'#4a5068', icon:'?', zabbix_groups:'[]', sort_order:99 });
 })();
 
 // ── Seed default triggers ────────────────────────────────────
