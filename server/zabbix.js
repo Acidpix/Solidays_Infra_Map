@@ -175,6 +175,10 @@ async function getGroups(cfg) {
 async function testConnection(cfg) {
   const url = buildUrl(cfg);
   const version = await zabbixCall(url, 'apiinfo.version', {});
+  // Also verify credentials by actually logging in
+  _token = null;
+  _tokenCfg = null;
+  await login(cfg);
   return version;
 }
 
