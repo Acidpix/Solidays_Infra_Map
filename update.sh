@@ -59,7 +59,19 @@ cd "$INSTALL_DIR"
 npm install --omit=dev 2>&1 | tail -5
 success "npm install OK"
 
-# ── 5. Permissions ────────────────────────────────────────
+# ── 5. Dossier data (fond de carte) ──────────────────────
+mkdir -p "$INSTALL_DIR/data"
+
+# Ensure systemd allows writing to data/
+SERVICE_FILE="/etc/systemd/system/netmap.service"
+if [ -f "$SERVICE_FILE" ] && ! grep -q "$INSTALL_DIR/data" "$SERVICE_FILE"; then
+  info "Mise à jour du service systemd (ReadWritePaths)..."
+  sed -i "s|ReadWritePaths=.*|ReadWritePaths=${INSTALL_DIR}/db ${INSTALL_DIR}/data|" "$SERVICE_FILE"
+  systemctl daemon-reload
+  success "Service systemd mis à jour"
+fi
+
+# ── 6. Permissions ────────────────────────────────────────
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 
 # ── 6. Redémarrage du service ─────────────────────────────

@@ -49,6 +49,7 @@ success "Dépendances OK"
 # ── 3. Répertoire installation ───────────────────────────────
 info "Création du répertoire $INSTALL_DIR..."
 mkdir -p "$INSTALL_DIR/db"
+mkdir -p "$INSTALL_DIR/data"
 mkdir -p "$INSTALL_DIR/server"
 mkdir -p "$INSTALL_DIR/public"
 
@@ -107,7 +108,7 @@ Environment=PORT=${PORT}
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ReadWritePaths=${INSTALL_DIR}/db
+ReadWritePaths=${INSTALL_DIR}/db ${INSTALL_DIR}/data
 
 [Install]
 WantedBy=multi-user.target
