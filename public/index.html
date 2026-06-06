@@ -267,11 +267,16 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 /* GPS / Leaflet */
 #lmap{position:absolute;inset:0;z-index:0;display:none}
 #map-canvas{z-index:1}
-#gps-calib-bar{position:fixed;top:86px;left:50%;transform:translateX(-50%);z-index:3000;background:rgba(55,138,221,0.96);color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);display:none}
-#gps-calib-bar button{background:rgba(255,255,255,0.18);border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px}
-#gps-calib-bar button:hover{background:rgba(255,255,255,0.32)}
+#gps-calib-bar,#gps-place-bar{position:fixed;top:86px;left:50%;transform:translateX(-50%);z-index:3000;color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);display:none;flex-wrap:wrap}
+#gps-calib-bar{background:rgba(55,138,221,0.96)}
+#gps-place-bar{background:rgba(22,101,48,0.97)}
+#gps-calib-bar button,#gps-place-bar button{background:rgba(255,255,255,0.18);border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px}
+#gps-calib-bar button:hover,#gps-place-bar button:hover{background:rgba(255,255,255,0.32)}
+#btn-place{display:none}
+#btn-place.vis{display:inline-flex}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
 <body>
@@ -298,6 +303,7 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
     <button class="tb-btn" id="btn-zout"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
     <button class="tb-btn" id="btn-reset"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg></button>
     <button class="tb-btn" id="btn-ref"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+    <button class="tb-btn" id="btn-place">🗺️ Placer le plan</button>
     <div class="sep"></div>
     <button class="tb-btn" id="btn-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Paramètres</button>
     <button class="tb-btn" id="btn-theme" title="Mode clair / sombre"><svg id="theme-icon-moon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="theme-icon-sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
@@ -328,6 +334,15 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 
 <!-- GPS calibration bar -->
 <div id="gps-calib-bar"><span id="gps-calib-msg"></span><button id="gps-calib-abort">Annuler</button></div>
+<!-- GPS placement bar -->
+<div id="gps-place-bar">
+  <span style="font-weight:600">🗺️ Mode placement</span>
+  <span style="opacity:0.75;font-size:11px">Glissez le plan · Ajustez</span>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px">Plan&nbsp;<input type="range" id="pl-rot" min="-180" max="180" step="0.5" style="width:90px;accent-color:#fff"><span id="pl-rot-val" style="min-width:34px">0°</span></label>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px">OSM&nbsp;<input type="range" id="pl-bearing" min="-180" max="180" step="0.5" style="width:90px;accent-color:#aef"><span id="pl-bearing-val" style="min-width:34px">0°</span></label>
+  <button id="pl-save">💾 Enregistrer</button>
+  <button id="pl-close">✕ Fermer</button>
+</div>
 
 <!-- Drag ghost -->
 <div id="drag-ghost"></div>
@@ -526,8 +541,19 @@ let gpsBounds=null; // {nw:{lat,lng},se:{lat,lng}}
 let overlayOpacity=parseFloat(localStorage.getItem('solidayMap.overlayOpacity')||'0.75');
 let showUserGps=localStorage.getItem('solidayMap.gpsLoc')==='1';
 let lmap=null,userGps=null,gpsWatchId=null,calibStep=0;
+let placeMode=false,bgOverlay=null;
+let overlayRotation=parseFloat(localStorage.getItem('solidayMap.overlayRot')||'0');
+let mapBearing=parseFloat(localStorage.getItem('solidayMap.bearing')||'0');
+let _plDragStart=null,_plBoundsAtDrag=null;
 
-function canvasToGps(rx,ry){if(!gpsBounds)return null;return{lat:gpsBounds.nw.lat+(gpsBounds.se.lat-gpsBounds.nw.lat)*ry,lng:gpsBounds.nw.lng+(gpsBounds.se.lng-gpsBounds.nw.lng)*rx};}
+function canvasToGps(rx,ry){
+  if(!gpsBounds)return null;
+  if(!overlayRotation){return{lat:gpsBounds.nw.lat+(gpsBounds.se.lat-gpsBounds.nw.lat)*ry,lng:gpsBounds.nw.lng+(gpsBounds.se.lng-gpsBounds.nw.lng)*rx};}
+  const cLat=(gpsBounds.nw.lat+gpsBounds.se.lat)/2,cLng=(gpsBounds.nw.lng+gpsBounds.se.lng)/2;
+  const dLat=gpsBounds.se.lat-gpsBounds.nw.lat,dLng=gpsBounds.se.lng-gpsBounds.nw.lng;
+  const dx=rx-0.5,dy=ry-0.5,R=overlayRotation*Math.PI/180;
+  return{lat:cLat+(-dx*Math.sin(R)+dy*Math.cos(R))*dLat,lng:cLng+(dx*Math.cos(R)+dy*Math.sin(R))*dLng};
+}
 function deviceToGps(d){return d.onMap?canvasToGps(d.x,d.y):null;}
 function groupToGps(g){return canvasToGps(g.x,g.y);}
 function gmapsUrl(lat,lng){return`https://maps.google.com/?q=${lat.toFixed(6)},${lng.toFixed(6)}`;}
@@ -542,13 +568,74 @@ function updateCanvasOverlay(){
   canvas.style.left=left+'px';canvas.style.top=top+'px';
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
   scale=1;offX=0;offY=0;
+  draw();
+}
+
+// RotatableImageOverlay — imageOverlay Leaflet qui reapplique la rotation CSS après chaque pan/zoom
+const RotatableImageOverlay=L.ImageOverlay.extend({
+  _reset:function(){
+    L.ImageOverlay.prototype._reset.call(this);
+    if(this._image){
+      this._image.style.transformOrigin='center center';
+      this._image.style.transform=`rotate(${this.options.rotation||0}deg)`;
+    }
+  }
+});
+
+function updateBgOverlay(){
+  if(bgOverlay){bgOverlay.remove();bgOverlay=null;}
+  if(!lmap||!gpsBounds||!gpsBounds.nw||!gpsBounds.se||!gpsBounds.nw.lat||!bgImage)return;
+  bgOverlay=new RotatableImageOverlay(
+    `${API}/map/background?t=${Date.now()}`,
+    [[gpsBounds.nw.lat,gpsBounds.nw.lng],[gpsBounds.se.lat,gpsBounds.se.lng]],
+    {opacity:overlayOpacity,rotation:overlayRotation,interactive:false,zIndex:0}
+  );
+  bgOverlay.addTo(lmap);
+  if(placeMode)setupOverlayDrag();
+}
+
+function setupOverlayDrag(){
+  if(!bgOverlay)return;
+  const el=bgOverlay.getElement();if(!el)return;
+  el.style.cursor='grab';
+  el.style.pointerEvents='all';
+  el.removeEventListener('mousedown',_onOvMd);
+  el.addEventListener('mousedown',_onOvMd);
+}
+
+function _onOvMd(e){
+  if(!placeMode)return;
+  L.DomEvent.stopPropagation(e);
+  const rect=lmap.getContainer().getBoundingClientRect();
+  _plDragStart=lmap.containerPointToLatLng(L.point(e.clientX-rect.left,e.clientY-rect.top));
+  _plBoundsAtDrag={nw:{...gpsBounds.nw},se:{...gpsBounds.se}};
+  if(bgOverlay&&bgOverlay.getElement())bgOverlay.getElement().style.cursor='grabbing';
+  document.addEventListener('mousemove',_onOvMv);
+  document.addEventListener('mouseup',_onOvMu,{once:true});
+}
+
+function _onOvMv(e){
+  if(!_plDragStart||!lmap)return;
+  const rect=lmap.getContainer().getBoundingClientRect();
+  const pt=lmap.containerPointToLatLng(L.point(e.clientX-rect.left,e.clientY-rect.top));
+  const dlat=pt.lat-_plDragStart.lat,dlng=pt.lng-_plDragStart.lng;
+  gpsBounds={nw:{lat:_plBoundsAtDrag.nw.lat+dlat,lng:_plBoundsAtDrag.nw.lng+dlng},se:{lat:_plBoundsAtDrag.se.lat+dlat,lng:_plBoundsAtDrag.se.lng+dlng}};
+  if(bgOverlay)bgOverlay.setBounds([[gpsBounds.nw.lat,gpsBounds.nw.lng],[gpsBounds.se.lat,gpsBounds.se.lng]]);
+  updateCanvasOverlay();
+  syncGpsFields();
+}
+
+function _onOvMu(){
+  document.removeEventListener('mousemove',_onOvMv);
+  _plDragStart=null;
+  if(bgOverlay&&bgOverlay.getElement())bgOverlay.getElement().style.cursor='grab';
 }
 
 function startLeaflet(){
   if(lmap)return;
   const el=document.getElementById('lmap');
   el.style.display='block';
-  lmap=L.map('lmap',{zoomControl:true,attributionControl:false});
+  lmap=L.map('lmap',{zoomControl:true,attributionControl:false,rotate:true,touchRotate:false});
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:22}).addTo(lmap);
   L.control.attribution({position:'bottomright',prefix:'© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(lmap);
   lmap.on('move zoom resize',updateCanvasOverlay);
@@ -557,26 +644,54 @@ function startLeaflet(){
   }else{
     lmap.setView([48.8566,2.3522],16);
   }
+  if(mapBearing)lmap.setBearing(mapBearing);
   updateCanvasOverlay();
+  updateBgOverlay();
 }
 
 function stopLeaflet(){
   if(!lmap)return;
+  if(bgOverlay){bgOverlay.remove();bgOverlay=null;}
   document.getElementById('lmap').style.display='none';
   lmap.remove();lmap=null;
   canvas.style.left='0';canvas.style.top='0';
+  canvas.style.transform='';
+}
+
+function startPlaceMode(){
+  if(!gpsMode)return;
+  placeMode=true;
+  document.getElementById('gps-place-bar').style.display='flex';
+  document.getElementById('pl-rot').value=overlayRotation;
+  document.getElementById('pl-rot-val').textContent=Math.round(overlayRotation)+'°';
+  document.getElementById('pl-bearing').value=mapBearing;
+  document.getElementById('pl-bearing-val').textContent=Math.round(mapBearing)+'°';
+  closeSettings();
+  if(!lmap)startLeaflet();
+  if(bgOverlay)setupOverlayDrag();else updateBgOverlay();
+}
+
+function stopPlaceMode(){
+  placeMode=false;
+  document.getElementById('gps-place-bar').style.display='none';
+  document.removeEventListener('mousemove',_onOvMv);
+  if(bgOverlay){const el=bgOverlay.getElement();if(el){el.style.cursor='';el.style.pointerEvents='';}}
 }
 
 function applyGpsMode(){
+  const btn=document.getElementById('btn-place');
   if(gpsMode){
-    canvas.style.opacity=String(overlayOpacity);
     canvas.style.pointerEvents='none';
+    if(btn)btn.classList.add('vis');
     startLeaflet();
     if(showUserGps&&!gpsWatchId)startGpsWatch();
   }else{
     canvas.style.opacity='';
     canvas.style.pointerEvents='';
     canvas.style.left='0';canvas.style.top='0';
+    canvas.style.transform='';
+    if(btn)btn.classList.remove('vis');
+    if(placeMode)stopPlaceMode();
     if(gpsWatchId){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;userGps=null;}
     stopLeaflet();
     resize();
@@ -600,9 +715,13 @@ function updateGpsBoundsInfo(){
 }
 
 async function saveGpsBounds(){
-  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:gpsBounds})});
+  localStorage.setItem('solidayMap.overlayRot',String(overlayRotation));
+  localStorage.setItem('solidayMap.bearing',String(mapBearing));
+  const payload=gpsBounds?{...gpsBounds,rotation:overlayRotation,bearing:mapBearing}:null;
+  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:payload})});
+  updateBgOverlay();
   updateCanvasOverlay();
-  if(lmap&&gpsBounds&&gpsBounds.nw.lat&&gpsBounds.se.lat){
+  if(lmap&&gpsBounds&&gpsBounds.nw&&gpsBounds.nw.lat&&gpsBounds.se&&gpsBounds.se.lat){
     lmap.fitBounds([[gpsBounds.nw.lat,gpsBounds.nw.lng],[gpsBounds.se.lat,gpsBounds.se.lng]],{padding:[50,50]});
   }
   updateGpsBoundsInfo();
@@ -636,9 +755,9 @@ function startCalib(step){
 }
 
 function updateBgStatus(){const status=document.getElementById('bg-status');if(!status)return;status.textContent=bgImage?'Fond de carte chargé':'Aucun fond chargé';}
-function loadBgFromServer(){const img=new Image();img.onload=()=>{bgImage=img;updateBgStatus();};img.onerror=()=>{bgImage=null;updateBgStatus();};img.src=`${API}/map/background?t=${Date.now()}`;}
+function loadBgFromServer(){const img=new Image();img.onload=()=>{bgImage=img;updateBgStatus();if(gpsMode)updateBgOverlay();else draw();};img.onerror=()=>{bgImage=null;updateBgStatus();};img.src=`${API}/map/background?t=${Date.now()}`;}
 async function setBgImage(dataUrl){try{await fetch(`${API}/map/background`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:dataUrl})});loadBgFromServer();}catch(e){console.error('bg upload error',e);}}
-async function clearBgImage(){try{await fetch(`${API}/map/background`,{method:'DELETE'});}catch(e){}bgImage=null;updateBgStatus();}
+async function clearBgImage(){try{await fetch(`${API}/map/background`,{method:'DELETE'});}catch(e){}bgImage=null;updateBgStatus();if(bgOverlay){bgOverlay.remove();bgOverlay=null;}}
 function loadBgImage(){loadBgFromServer();}
 
 /* ── TYPES & Legend ────────────────────────────────────────── */
@@ -676,9 +795,25 @@ wrap.addEventListener('click',e=>{
 document.getElementById('gps-calib-nw').addEventListener('click',()=>startCalib(1));
 document.getElementById('gps-calib-se').addEventListener('click',()=>startCalib(2));
 document.getElementById('gps-calib-abort').addEventListener('click',()=>{calibStep=0;document.getElementById('gps-calib-bar').style.display='none';if(lmap)lmap.off('click');});
-document.getElementById('gps-calib-clear').addEventListener('click',async()=>{gpsBounds=null;await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:null})});if(lmap){canvas.style.left='0';canvas.style.top='0';if(gpsMode)resize();}updateGpsBoundsInfo();syncGpsFields();});
+document.getElementById('gps-calib-clear').addEventListener('click',async()=>{gpsBounds=null;if(bgOverlay){bgOverlay.remove();bgOverlay=null;}await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:null})});if(lmap){canvas.style.left='0';canvas.style.top='0';}updateGpsBoundsInfo();syncGpsFields();draw();});
 document.getElementById('dgps').addEventListener('change',e=>{document.getElementById('gps-sub').style.display=e.target.checked?'block':'none';});
-document.getElementById('gps-opa').addEventListener('input',e=>{overlayOpacity=parseFloat(e.target.value);document.getElementById('gps-opa-val').textContent=Math.round(overlayOpacity*100)+'%';if(gpsMode)canvas.style.opacity=String(overlayOpacity);});
+document.getElementById('gps-opa').addEventListener('input',e=>{overlayOpacity=parseFloat(e.target.value);document.getElementById('gps-opa-val').textContent=Math.round(overlayOpacity*100)+'%';if(bgOverlay)bgOverlay.setOpacity(overlayOpacity);});
+// Placement bar wiring
+document.getElementById('btn-place').addEventListener('click',()=>{if(!gpsMode)return;startPlaceMode();});
+document.getElementById('pl-close').addEventListener('click',stopPlaceMode);
+document.getElementById('pl-save').addEventListener('click',async()=>{await saveGpsBounds();});
+document.getElementById('pl-rot').addEventListener('input',e=>{
+  overlayRotation=parseFloat(e.target.value);
+  document.getElementById('pl-rot-val').textContent=Math.round(overlayRotation)+'°';
+  localStorage.setItem('solidayMap.overlayRot',String(overlayRotation));
+  if(bgOverlay){const el=bgOverlay.getElement();if(el){el.style.transformOrigin='center center';el.style.transform=`rotate(${overlayRotation}deg)`;}}
+});
+document.getElementById('pl-bearing').addEventListener('input',e=>{
+  mapBearing=parseFloat(e.target.value);
+  document.getElementById('pl-bearing-val').textContent=Math.round(mapBearing)+'°';
+  localStorage.setItem('solidayMap.bearing',String(mapBearing));
+  if(lmap&&lmap.setBearing)lmap.setBearing(mapBearing);
+});
 
 function resize(){if(gpsMode&&gpsBounds){updateCanvasOverlay();return;}canvas.width=wrap.clientWidth;canvas.height=wrap.clientHeight;}
 function toS(rx,ry){return[rx*canvas.width*scale+offX,ry*canvas.height*scale+offY];}
@@ -693,8 +828,8 @@ function gBB(g){const pad=GPAD(),dsz=DIG();const devs=g.deviceIds.map(id=>device
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  if(bgImage){ctx.save();ctx.globalAlpha=0.95;ctx.setTransform(scale,0,0,scale,offX,offY);const iw=bgImage.width,ih=bgImage.height,sw=canvas.width,sh=canvas.height,scaleImg=Math.max(sw/iw,sh/ih),iw2=iw*scaleImg,ih2=ih*scaleImg;ctx.drawImage(bgImage,(sw-iw2)/2,(sh-ih2)/2,iw2,ih2);ctx.restore();ctx.setTransform(1,0,0,1,0,0);}
-  if(disp.grid){ctx.save();ctx.strokeStyle=mapLight?'rgba(0,0,0,0.08)':'rgba(255,255,255,0.03)';ctx.lineWidth=1;const gs=50*scale,ox=offX%gs,oy=offY%gs;for(let x=ox;x<canvas.width;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}for(let y=oy;y<canvas.height;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}ctx.restore();}
+  if(bgImage&&!gpsMode){ctx.save();ctx.globalAlpha=0.95;ctx.setTransform(scale,0,0,scale,offX,offY);const iw=bgImage.width,ih=bgImage.height,sw=canvas.width,sh=canvas.height,scaleImg=Math.max(sw/iw,sh/ih),iw2=iw*scaleImg,ih2=ih*scaleImg;ctx.drawImage(bgImage,(sw-iw2)/2,(sh-ih2)/2,iw2,ih2);ctx.restore();ctx.setTransform(1,0,0,1,0,0);}
+  if(disp.grid&&!gpsMode){ctx.save();ctx.strokeStyle=mapLight?'rgba(0,0,0,0.08)':'rgba(255,255,255,0.03)';ctx.lineWidth=1;const gs=50*scale,ox=offX%gs,oy=offY%gs;for(let x=ox;x<canvas.width;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}for(let y=oy;y<canvas.height;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}ctx.restore();}
   const SZ=DSZ(),half=SZ/2,CR=Math.max(2,3*scale)*iconScale;
   for(const g of groups){
     const st=gSt(g),bb=gBB(g);const{x:bx,y:by,w:bw,h:bh,cols,cellSz,pad,devs,cx,cy}=bb;
@@ -1074,7 +1209,8 @@ document.getElementById('spsv').addEventListener('click',async()=>{
   if(!isNaN(nwlat)&&!isNaN(nwlng)&&!isNaN(selat)&&!isNaN(selng)){
     gpsBounds={nw:{lat:nwlat,lng:nwlng},se:{lat:selat,lng:selng}};
   }else if(document.getElementById('gps-nw-lat').value===''){gpsBounds=null;}
-  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:gpsBounds})});
+  const gpsSave=gpsBounds?{...gpsBounds,rotation:overlayRotation,bearing:mapBearing}:null;
+  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:gpsSave})});
   const prevGps=gpsMode;
   gpsMode=document.getElementById('dgps').checked;
   overlayOpacity=parseFloat(document.getElementById('gps-opa').value)||0.75;
@@ -1082,7 +1218,7 @@ document.getElementById('spsv').addEventListener('click',async()=>{
   localStorage.setItem('solidayMap.gpsMode',gpsMode?'1':'0');
   localStorage.setItem('solidayMap.overlayOpacity',String(overlayOpacity));
   localStorage.setItem('solidayMap.gpsLoc',showUserGps?'1':'0');
-  if(gpsMode!==prevGps||gpsMode)applyGpsMode();
+  if(gpsMode!==prevGps||gpsMode){applyGpsMode();}else if(gpsMode){updateBgOverlay();}
   disp=d;lgnd();buildSidebar();
   const b=document.getElementById('bsv');b.classList.add('on');setTimeout(()=>b.classList.remove('on'),2500);
 });
@@ -1168,7 +1304,7 @@ fetchCategories().then(()=>{
   loadData();
   animate();
   fetch(`${API}/config`).then(r=>r.json()).then(cfg=>{
-    if(cfg.gps)gpsBounds=cfg.gps;
+    if(cfg.gps){gpsBounds=cfg.gps;if(cfg.gps.rotation!=null)overlayRotation=cfg.gps.rotation;if(cfg.gps.bearing!=null)mapBearing=cfg.gps.bearing;}
     if(gpsMode)applyGpsMode();
   }).catch(()=>{if(gpsMode)applyGpsMode();});
   setInterval(loadData,30000);
