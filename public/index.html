@@ -340,6 +340,7 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
   <span style="opacity:0.75;font-size:11px">Glissez le plan · Ajustez</span>
   <label style="display:flex;align-items:center;gap:5px;font-size:12px">Plan&nbsp;<input type="range" id="pl-rot" min="-180" max="180" step="0.5" style="width:90px;accent-color:#fff"><span id="pl-rot-val" style="min-width:34px">0°</span></label>
   <label style="display:flex;align-items:center;gap:5px;font-size:12px">OSM&nbsp;<input type="range" id="pl-bearing" min="-180" max="180" step="0.5" style="width:90px;accent-color:#aef"><span id="pl-bearing-val" style="min-width:34px">0°</span></label>
+  <button id="pl-ratio">⊡ Ratio</button>
   <button id="pl-view">📍 Vue de départ</button>
   <button id="pl-save">💾 Enregistrer</button>
   <button id="pl-close">✕ Fermer</button>
@@ -682,6 +683,20 @@ async function saveStartView(){
   btn.textContent='✓ Vue sauvegardée';setTimeout(()=>{btn.textContent='📍 Vue de départ';},2000);
 }
 
+// Ajuste les bounds GPS pour respecter le ratio natif de l'image (évite l'écrasement).
+// Garde le coin NW fixe, ajuste la hauteur (SE.lat) pour que le ratio pixel = ratio image.
+function fixBoundsAspect(){
+  if(!lmap||!bgImage||!gpsBounds||gpsBounds.nw==null||gpsBounds.nw.lat==null)return;
+  const ar=bgImage.width/bgImage.height; // largeur/hauteur
+  const nwPt=lmap.latLngToContainerPoint(L.latLng(gpsBounds.nw.lat,gpsBounds.nw.lng));
+  const sePt=lmap.latLngToContainerPoint(L.latLng(gpsBounds.se.lat,gpsBounds.se.lng));
+  const w=Math.abs(sePt.x-nwPt.x);
+  const desiredH=w/ar;
+  const newSe=lmap.containerPointToLatLng(L.point(sePt.x,nwPt.y+desiredH));
+  gpsBounds.se={lat:newSe.lat,lng:gpsBounds.se.lng};
+  updateBgOverlay();updateCanvasOverlay();updateGpsBoundsInfo();syncGpsFields();
+}
+
 function stopLeaflet(){
   if(!lmap)return;
   if(bgOverlay){bgOverlay.remove();bgOverlay=null;}
@@ -701,11 +716,15 @@ function startPlaceMode(){
   document.getElementById('pl-bearing-val').textContent=Math.round(mapBearing)+'°';
   closeSettings();
   if(!lmap)startLeaflet();
-  // Pas encore de calibration : crée des bounds par défaut au centre de la vue pour rendre le plan visible et déplaçable
+  // Pas encore de calibration : crée des bounds par défaut au centre, en respectant le ratio de l'image
   if(!gpsBounds||gpsBounds.nw==null||gpsBounds.nw.lat==null){
-    const b=lmap.getBounds(),c=lmap.getCenter();
-    const hLat=(b.getNorth()-b.getSouth())*0.25,hLng=(b.getEast()-b.getWest())*0.25;
-    gpsBounds={nw:{lat:c.lat+hLat,lng:c.lng-hLng},se:{lat:c.lat-hLat,lng:c.lng+hLng}};
+    const ctr=lmap.latLngToContainerPoint(lmap.getCenter());
+    const ar=bgImage?bgImage.width/bgImage.height:1.5;
+    let w=wrap.clientWidth*0.5,h=w/ar;const maxH=wrap.clientHeight*0.5;
+    if(h>maxH){h=maxH;w=h*ar;}
+    const nw=lmap.containerPointToLatLng(L.point(ctr.x-w/2,ctr.y-h/2));
+    const se=lmap.containerPointToLatLng(L.point(ctr.x+w/2,ctr.y+h/2));
+    gpsBounds={nw:{lat:nw.lat,lng:nw.lng},se:{lat:se.lat,lng:se.lng}};
     syncGpsFields();updateGpsBoundsInfo();
   }
   if(bgOverlay)setupOverlayDrag();else updateBgOverlay();
@@ -887,6 +906,7 @@ document.getElementById('gps-opa').addEventListener('input',e=>{overlayOpacity=p
 // Placement bar wiring
 document.getElementById('btn-place').addEventListener('click',()=>{if(!gpsMode)return;startPlaceMode();});
 document.getElementById('pl-close').addEventListener('click',stopPlaceMode);
+document.getElementById('pl-ratio').addEventListener('click',fixBoundsAspect);
 document.getElementById('pl-view').addEventListener('click',saveStartView);
 document.getElementById('pl-save').addEventListener('click',async()=>{await saveGpsBounds();});
 document.getElementById('pl-rot').addEventListener('input',e=>{
