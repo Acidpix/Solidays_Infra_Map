@@ -373,7 +373,11 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
   <label style="display:flex;align-items:center;gap:5px;font-size:12px">Taille&nbsp;<input type="range" id="pl-scale" min="0.2" max="3" step="0.001" value="1" style="width:90px;accent-color:#fe9"><input type="number" id="pl-scale-num" class="pl-num" value="100" min="20" max="300" step="0.1"><span style="font-size:11px;opacity:.7">%</span></label>
   <label style="display:flex;align-items:center;gap:5px;font-size:12px">Plan&nbsp;<input type="range" id="pl-rot" min="-180" max="180" step="0.1" style="width:90px;accent-color:#fff"><input type="number" id="pl-rot-num" class="pl-num" value="0" min="-180" max="180" step="0.1"><span style="font-size:11px;opacity:.7">°</span></label>
   <label style="display:flex;align-items:center;gap:5px;font-size:12px">OSM&nbsp;<input type="range" id="pl-bearing" min="-180" max="180" step="0.1" style="width:90px;accent-color:#aef"><input type="number" id="pl-bearing-num" class="pl-num" value="0" min="-180" max="180" step="0.1"><span style="font-size:11px;opacity:.7">°</span></label>
-  <button id="pl-ratio">⊡ Ratio</button>
+  <span style="display:flex;align-items:center;gap:3px;flex-shrink:0">
+    <button id="pl-ratio" title="Appliquer le ratio natif de l'image">⊡ Auto</button>
+    <input type="number" id="pl-ratio-num" class="pl-num" value="1.778" min="0.1" max="20" step="0.001" style="width:60px" title="Ratio largeur/hauteur (ex: 1.778 pour 16:9, 1.333 pour 4:3)">
+    <span style="font-size:11px;opacity:.7">W/H</span>
+  </span>
   <button id="pl-view">📍 Vue de départ</button>
   <button id="pl-save">💾 Enregistrer</button>
   <button id="pl-close">✕ Fermer</button>
@@ -722,18 +726,21 @@ async function saveStartView(){
   btn.textContent='✓ Vue sauvegardée';setTimeout(()=>{btn.textContent='📍 Vue de départ';},2000);
 }
 
-// Ajuste les bounds GPS pour respecter le ratio natif de l'image (évite l'écrasement).
-// Garde le coin NW fixe, ajuste la hauteur (SE.lat) pour que le ratio pixel = ratio image.
-function fixBoundsAspect(){
-  if(!lmap||!bgImage||!gpsBounds||gpsBounds.nw==null||gpsBounds.nw.lat==null)return;
-  const ar=bgImage.width/bgImage.height; // largeur/hauteur
+// Applique un ratio W/H aux bounds : garde NW fixe, ajuste SE.lat pour la hauteur.
+function applyRatio(ar){
+  if(!lmap||!gpsBounds||gpsBounds.nw==null||gpsBounds.nw.lat==null||ar<=0)return;
   const nwPt=lmap.latLngToContainerPoint(L.latLng(gpsBounds.nw.lat,gpsBounds.nw.lng));
   const sePt=lmap.latLngToContainerPoint(L.latLng(gpsBounds.se.lat,gpsBounds.se.lng));
   const w=Math.abs(sePt.x-nwPt.x);
-  const desiredH=w/ar;
-  const newSe=lmap.containerPointToLatLng(L.point(sePt.x,nwPt.y+desiredH));
+  const newSe=lmap.containerPointToLatLng(L.point(sePt.x,nwPt.y+w/ar));
   gpsBounds.se={lat:newSe.lat,lng:gpsBounds.se.lng};
   updateBgOverlay();updateCanvasOverlay();updateGpsBoundsInfo();syncGpsFields();
+}
+function fixBoundsAspect(){
+  if(!bgImage)return;
+  const ar=bgImage.width/bgImage.height;
+  document.getElementById('pl-ratio-num').value=ar.toFixed(3);
+  applyRatio(ar);
 }
 
 // Redimensionne les bounds autour de leur centre (préserve le ratio)
@@ -765,6 +772,7 @@ function startPlaceMode(){
   document.getElementById('pl-bearing').value=mapBearing;
   document.getElementById('pl-bearing-num').value=mapBearing.toFixed(1);
   _plScale=1;document.getElementById('pl-scale').value=1;document.getElementById('pl-scale-num').value='100.0';
+  document.getElementById('pl-ratio-num').value=(bgImage?bgImage.width/bgImage.height:1.778).toFixed(3);
   closeSettings();
   if(!lmap)startLeaflet();
   // Pas encore de calibration : crée des bounds par défaut au centre, en respectant le ratio de l'image
@@ -958,6 +966,12 @@ document.getElementById('gps-opa').addEventListener('input',e=>{overlayOpacity=p
 document.getElementById('btn-place').addEventListener('click',()=>{if(!gpsMode)return;startPlaceMode();});
 document.getElementById('pl-close').addEventListener('click',stopPlaceMode);
 document.getElementById('pl-ratio').addEventListener('click',()=>{fixBoundsAspect();_plScale=1;document.getElementById('pl-scale').value=1;document.getElementById('pl-scale-num').value='100.0';});
+document.getElementById('pl-ratio-num').addEventListener('change',e=>{
+  const v=parseFloat(e.target.value);
+  if(isNaN(v)||v<=0){e.target.value=(bgImage?bgImage.width/bgImage.height:1.778).toFixed(3);return;}
+  e.target.value=v.toFixed(3);
+  applyRatio(v);
+});
 document.getElementById('pl-scale').addEventListener('input',e=>{
   const nv=parseFloat(e.target.value);
   document.getElementById('pl-scale-num').value=(nv*100).toFixed(1);
