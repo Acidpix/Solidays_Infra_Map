@@ -14,9 +14,9 @@
 :root.light .tb-btn:hover{color:var(--text)}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;overflow:hidden}
 #app{display:flex;flex-direction:column;height:100vh}
-#topbar{display:flex;align-items:center;gap:10px;padding:0 14px;height:52px;background:linear-gradient(90deg,#17122f,#1f1b57);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+#topbar{display:flex;align-items:center;gap:10px;padding:0 14px;height:78px;background:linear-gradient(90deg,#17122f,#1f1b57);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
 .logo{font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;margin-right:6px;color:var(--text)}
-.logo img{height:48px;width:auto;display:block}
+.logo img{height:70px;width:auto;display:block}
 .legend{display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap}
 .leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)}
 .leg-sq{width:10px;height:10px;border-radius:2px;flex-shrink:0}
@@ -113,6 +113,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe 
 .gfb{flex:1;padding:5px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;transition:all .1s}
 .gfb:hover{background:var(--bg3);color:var(--text)}
 .gfb.d:hover{background:rgba(226,75,74,0.12);border-color:var(--crit);color:var(--crit)}
+.gfb.pa{color:var(--text3)}
+.gfb.pa:hover{background:rgba(107,114,128,0.12);border-color:rgba(107,114,128,0.5);color:var(--text2)}
+.gfb.pa.on{color:var(--ok);border-color:rgba(29,158,117,0.4)}
+.gfb.pa.on:hover{background:rgba(29,158,117,0.1)}
+.gfb.pl{color:var(--text3)}
+.gfb.pl:hover{background:rgba(29,158,117,0.1);border-color:rgba(29,158,117,0.4);color:var(--ok)}
+.gfb.pl.on{color:var(--ok);border-color:rgba(29,158,117,0.5);background:rgba(29,158,117,0.08)}
+.gfb.pl.on:hover{background:rgba(29,158,117,0.18)}
 /* Statusbar */
 #sb{display:flex;align-items:center;gap:18px;padding:0 16px;height:30px;background:var(--bg2);border-top:1px solid var(--border);flex-shrink:0;font-size:11px;color:var(--text3)}
 #sb span{display:flex;align-items:center;gap:4px}
@@ -256,7 +264,15 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 .spsv:hover{opacity:.85}
 .spca{padding:7px 16px;background:transparent;border:1px solid var(--border2);border-radius:var(--r);color:var(--text2);font-size:13px;cursor:pointer}
 .spca:hover{background:var(--bg3)}
+/* GPS / Leaflet */
+#lmap{position:absolute;inset:0;z-index:0;display:none}
+#map-canvas{z-index:1}
+#gps-calib-bar{position:fixed;top:86px;left:50%;transform:translateX(-50%);z-index:3000;background:rgba(55,138,221,0.96);color:#fff;padding:9px 18px;border-radius:8px;font-size:13px;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(0,0,0,0.4);display:none}
+#gps-calib-bar button{background:rgba(255,255,255,0.18);border:none;color:#fff;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:12px}
+#gps-calib-bar button:hover{background:rgba(255,255,255,0.32)}
 </style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
 <body>
 <div id="app">
@@ -297,7 +313,7 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
       <div class="sb-scroll" id="sb-cats"></div>
     </div>
     <!-- Canvas -->
-    <div id="canvas-wrap"><canvas id="map-canvas"></canvas></div>
+    <div id="canvas-wrap"><div id="lmap"></div><canvas id="map-canvas"></canvas></div>
   </div>
 
   <div id="sb">
@@ -310,16 +326,23 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
   </div>
 </div>
 
+<!-- GPS calibration bar -->
+<div id="gps-calib-bar"><span id="gps-calib-msg"></span><button id="gps-calib-abort">Annuler</button></div>
+
 <!-- Drag ghost -->
 <div id="drag-ghost"></div>
 
 <!-- Context menu -->
 <div id="ctx-menu">
   <div class="ctx-head" id="ctx-devname"></div>
-  <div class="ctx-sep"></div>
+  <div class="ctx-sep" id="ctx-sep1"></div>
   <div class="ctx-item danger" id="ctx-remove">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
     Retirer de la carte
+  </div>
+  <div class="ctx-item" id="ctx-new-group" style="display:none">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="3" width="7" height="7" rx="1"/><rect x="15" y="3" width="7" height="7" rx="1"/><rect x="2" y="14" width="7" height="7" rx="1"/><rect x="15" y="14" width="7" height="7" rx="1"/></svg>
+    Nouveau groupe ici
   </div>
 </div>
 
@@ -333,8 +356,9 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
     <button class="gib" id="gpren" title="Renommer"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
     <button class="gib d" id="gpug" title="Dégrouper"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
   </div></div>
+  <div id="gp-gps" style="display:none;padding:4px 13px 6px;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border)"></div>
   <div class="gdl" id="gdl"></div>
-  <div class="gpf"><button class="gfb" id="gpcl">Fermer</button><button class="gfb d" id="gpdl">Supprimer</button></div>
+  <div class="gpf"><button class="gfb" id="gpcl">Fermer</button><button class="gfb pl" id="gpplaced">✓ Posé</button><button class="gfb pa" id="gppause">⏸ Désactiver</button><button class="gfb d" id="gpdl">Supprimer</button></div>
 </div>
 
 <!-- Group create modal -->
@@ -392,6 +416,7 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
       <div class="spt on" data-t="zabbix">Connexion Zabbix</div>
       <div class="spt" data-t="triggers">Triggers</div>
       <div class="spt" data-t="display">Affichage</div>
+      <div class="spt" data-t="gps">GPS / Carte</div>
     </div>
     <div class="spb">
       <div id="st-zabbix">
@@ -425,6 +450,32 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
           <div class="tr"><div><div class="trl">Fond de carte clair</div><div class="trd">Textes et grille en sombre (pour plan blanc)</div></div><label class="tog"><input type="checkbox" id="dmaplight"><span class="tsl"></span></label></div>
         </div>
         <div class="sps"><div class="spst">Couleurs des catégories</div><div id="clred"></div></div>
+      </div>
+      <div id="st-gps" style="display:none">
+        <div class="sps"><div class="spst">Fond de carte réel</div>
+          <div class="tr"><div><div class="trl">Activer OpenStreetMap</div><div class="trd">Affiche la carte réelle sous le plan</div></div><label class="tog"><input type="checkbox" id="dgps"><span class="tsl"></span></label></div>
+          <div id="gps-sub" style="display:none">
+            <div class="tr"><div style="flex:1"><div class="trl">Opacité du plan</div><div class="trd">Transparence de la superposition</div></div><div style="display:flex;gap:8px;align-items:center"><input type="range" id="gps-opa" min="0.1" max="1" step="0.05" style="width:100px;accent-color:#378ADD"><span id="gps-opa-val" style="min-width:38px;font-size:12px;color:var(--text2);text-align:right">75%</span></div></div>
+            <div class="tr"><div><div class="trl">Afficher ma position GPS</div><div class="trd">Point bleu sur la carte</div></div><label class="tog"><input type="checkbox" id="dgps-loc"><span class="tsl"></span></label></div>
+          </div>
+        </div>
+        <div class="sps"><div class="spst">Calibration GPS</div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Associe votre plan à des coordonnées GPS réelles. Entrez les coins NW (haut-gauche) et SE (bas-droite) de votre plan, ou cliquez sur la carte pour les pointer.</p>
+          <div class="row2" style="margin-bottom:8px">
+            <div class="spf"><div class="spl">Lat NW</div><input class="spi" id="gps-nw-lat" type="number" step="0.000001" placeholder="48.866667"></div>
+            <div class="spf"><div class="spl">Lng NW</div><input class="spi" id="gps-nw-lng" type="number" step="0.000001" placeholder="2.333333"></div>
+          </div>
+          <div class="row2" style="margin-bottom:12px">
+            <div class="spf"><div class="spl">Lat SE</div><input class="spi" id="gps-se-lat" type="number" step="0.000001" placeholder="48.864444"></div>
+            <div class="spf"><div class="spl">Lng SE</div><input class="spi" id="gps-se-lng" type="number" step="0.000001" placeholder="2.337222"></div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+            <button class="mb co" id="gps-calib-nw">📍 Pointer NW</button>
+            <button class="mb co" id="gps-calib-se">📍 Pointer SE</button>
+            <button class="mb ca" id="gps-calib-clear">Effacer</button>
+          </div>
+          <div id="gps-bounds-info" style="font-size:11px;color:var(--text3)"></div>
+        </div>
       </div>
     </div>
     <div class="spft"><span class="bsv" id="bsv">✓ Sauvegardé</span><button class="spca" id="spca">Annuler</button><button class="spsv" id="spsv">Enregistrer</button></div>
@@ -466,7 +517,154 @@ let alertFilter='all';
 let sidebarOpen=true;
 let dragSb=null;   // sidebar drag state {id, dev}
 let ctxTarget=null;
-let catModalId=null; // null=new, string=edit existing
+let newGroupPos=null;
+let catModalId=null;
+
+/* ── GPS / Leaflet state ──────────────────────────────────── */
+let gpsMode=localStorage.getItem('solidayMap.gpsMode')==='1';
+let gpsBounds=null; // {nw:{lat,lng},se:{lat,lng}}
+let overlayOpacity=parseFloat(localStorage.getItem('solidayMap.overlayOpacity')||'0.75');
+let showUserGps=localStorage.getItem('solidayMap.gpsLoc')==='1';
+let lmap=null,userGps=null,gpsWatchId=null,calibStep=0;
+
+function canvasToGps(rx,ry){if(!gpsBounds)return null;return{lat:gpsBounds.nw.lat+(gpsBounds.se.lat-gpsBounds.nw.lat)*ry,lng:gpsBounds.nw.lng+(gpsBounds.se.lng-gpsBounds.nw.lng)*rx};}
+function deviceToGps(d){return d.onMap?canvasToGps(d.x,d.y):null;}
+function groupToGps(g){return canvasToGps(g.x,g.y);}
+function gmapsUrl(lat,lng){return`https://maps.google.com/?q=${lat.toFixed(6)},${lng.toFixed(6)}`;}
+function fmtCoord(c){return`${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`;}
+
+function updateCanvasOverlay(){
+  if(!lmap||!gpsBounds||!gpsBounds.nw||!gpsBounds.se)return;
+  const nwPt=lmap.latLngToContainerPoint(L.latLng(gpsBounds.nw.lat,gpsBounds.nw.lng));
+  const sePt=lmap.latLngToContainerPoint(L.latLng(gpsBounds.se.lat,gpsBounds.se.lng));
+  const left=Math.min(nwPt.x,sePt.x),top=Math.min(nwPt.y,sePt.y);
+  const w=Math.max(10,Math.abs(sePt.x-nwPt.x)),h=Math.max(10,Math.abs(sePt.y-nwPt.y));
+  canvas.style.left=left+'px';canvas.style.top=top+'px';
+  if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+  scale=1;offX=0;offY=0;
+}
+
+function startLeaflet(){
+  if(lmap)return;
+  const el=document.getElementById('lmap');
+  el.style.display='block';
+  lmap=L.map('lmap',{zoomControl:true,attributionControl:false});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:22}).addTo(lmap);
+  L.control.attribution({position:'bottomright',prefix:'© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(lmap);
+  lmap.on('move zoom resize',updateCanvasOverlay);
+  if(gpsBounds&&gpsBounds.nw&&gpsBounds.se&&gpsBounds.nw.lat&&gpsBounds.se.lat){
+    lmap.fitBounds([[gpsBounds.nw.lat,gpsBounds.nw.lng],[gpsBounds.se.lat,gpsBounds.se.lng]],{padding:[50,50]});
+  }else{
+    lmap.setView([48.8566,2.3522],16);
+  }
+  updateCanvasOverlay();
+}
+
+function stopLeaflet(){
+  if(!lmap)return;
+  document.getElementById('lmap').style.display='none';
+  lmap.remove();lmap=null;
+  canvas.style.left='0';canvas.style.top='0';
+}
+
+function applyGpsMode(){
+  if(gpsMode){
+    canvas.style.opacity=String(overlayOpacity);
+    canvas.style.pointerEvents='none';
+    startLeaflet();
+    if(showUserGps&&!gpsWatchId)startGpsWatch();
+  }else{
+    canvas.style.opacity='';
+    canvas.style.pointerEvents='';
+    canvas.style.left='0';canvas.style.top='0';
+    if(gpsWatchId){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;userGps=null;}
+    stopLeaflet();
+    resize();
+  }
+}
+
+function startGpsWatch(){
+  if(!navigator.geolocation)return;
+  gpsWatchId=navigator.geolocation.watchPosition(
+    p=>{userGps={lat:p.coords.latitude,lng:p.coords.longitude};},
+    e=>{console.warn('GPS',e.message);},
+    {enableHighAccuracy:true,maximumAge:5000}
+  );
+}
+
+function updateGpsBoundsInfo(){
+  const el=document.getElementById('gps-bounds-info');if(!el)return;
+  if(gpsBounds&&gpsBounds.nw&&gpsBounds.se&&gpsBounds.nw.lat&&gpsBounds.se.lat){
+    el.textContent=`NW: ${fmtCoord(gpsBounds.nw)} · SE: ${fmtCoord(gpsBounds.se)}`;
+  }else{el.textContent='Aucune calibration définie.';}
+}
+
+async function saveGpsBounds(){
+  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:gpsBounds})});
+  updateCanvasOverlay();
+  if(lmap&&gpsBounds&&gpsBounds.nw.lat&&gpsBounds.se.lat){
+    lmap.fitBounds([[gpsBounds.nw.lat,gpsBounds.nw.lng],[gpsBounds.se.lat,gpsBounds.se.lng]],{padding:[50,50]});
+  }
+  updateGpsBoundsInfo();
+  syncGpsFields();
+}
+
+function syncGpsFields(){
+  const nwlat=document.getElementById('gps-nw-lat'),nwlng=document.getElementById('gps-nw-lng');
+  const selat=document.getElementById('gps-se-lat'),selng=document.getElementById('gps-se-lng');
+  if(!nwlat)return;
+  if(gpsBounds&&gpsBounds.nw){nwlat.value=gpsBounds.nw.lat;nwlng.value=gpsBounds.nw.lng;}
+  if(gpsBounds&&gpsBounds.se){selat.value=gpsBounds.se.lat;selng.value=gpsBounds.se.lng;}
+}
+
+function startCalib(step){
+  calibStep=step;
+  const bar=document.getElementById('gps-calib-bar');
+  document.getElementById('gps-calib-msg').textContent=step===1?'📍 Cliquez sur la carte pour marquer le coin NW (haut-gauche du plan)':'📍 Cliquez sur la carte pour marquer le coin SE (bas-droite du plan)';
+  bar.style.display='flex';
+  closeSettings();
+  if(!lmap)startLeaflet();
+  lmap.once('click',e=>{
+    if(!calibStep)return;
+    if(!gpsBounds)gpsBounds={nw:{lat:0,lng:0},se:{lat:0,lng:0}};
+    if(calibStep===1)gpsBounds.nw={lat:e.latlng.lat,lng:e.latlng.lng};
+    else gpsBounds.se={lat:e.latlng.lat,lng:e.latlng.lng};
+    calibStep=0;
+    bar.style.display='none';
+    saveGpsBounds();
+  });
+}
+
+// GPS mode item interaction — canvas has pointer-events:none, we use wrap
+wrap.addEventListener('mousemove',e=>{
+  if(!gpsMode)return;
+  const cRect=canvas.getBoundingClientRect(),wRect=wrap.getBoundingClientRect();
+  const csx=e.clientX-cRect.left,csy=e.clientY-cRect.top;
+  const wsx=e.clientX-wRect.left,wsy=e.clientY-wRect.top;
+  if(csx<0||csy<0||csx>cRect.width||csy>cRect.height){hideDP();hovered=null;return;}
+  const dig=hDIG(csx,csy);
+  if(dig){hovered={type:'dig',ref:dig.device};showDP(dig.device,wsx,wsy);return;}
+  const g=hGrp(csx,csy),dv=!g?hDev(csx,csy):null;
+  hovered=g?{type:'group',ref:g}:dv?{type:'dev',ref:dv}:null;
+  if(dv)showDP(dv,wsx,wsy);else hideDP();
+});
+wrap.addEventListener('mouseleave',e=>{if(gpsMode){hideDP();hovered=null;}});
+wrap.addEventListener('click',e=>{
+  if(!gpsMode)return;
+  const cRect=canvas.getBoundingClientRect(),wRect=wrap.getBoundingClientRect();
+  const csx=e.clientX-cRect.left,csy=e.clientY-cRect.top;
+  const wsx=e.clientX-wRect.left,wsy=e.clientY-wRect.top;
+  if(csx<0||csy<0||csx>cRect.width||csy>cRect.height)return;
+  const g=hGrp(csx,csy);if(g)showGP(g,wsx,wsy);
+});
+
+// Calibration UI event wiring
+document.getElementById('gps-calib-nw').addEventListener('click',()=>startCalib(1));
+document.getElementById('gps-calib-se').addEventListener('click',()=>startCalib(2));
+document.getElementById('gps-calib-abort').addEventListener('click',()=>{calibStep=0;document.getElementById('gps-calib-bar').style.display='none';if(lmap)lmap.off('click');});
+document.getElementById('gps-calib-clear').addEventListener('click',async()=>{gpsBounds=null;await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:null})});if(lmap){canvas.style.left='0';canvas.style.top='0';if(gpsMode)resize();}updateGpsBoundsInfo();syncGpsFields();});
+document.getElementById('dgps').addEventListener('change',e=>{document.getElementById('gps-sub').style.display=e.target.checked?'block':'none';});
+document.getElementById('gps-opa').addEventListener('input',e=>{overlayOpacity=parseFloat(e.target.value);document.getElementById('gps-opa-val').textContent=Math.round(overlayOpacity*100)+'%';if(gpsMode)canvas.style.opacity=String(overlayOpacity);}); // null=new, string=edit existing
 
 function updateBgStatus(){const status=document.getElementById('bg-status');if(!status)return;status.textContent=bgImage?'Fond de carte chargé':'Aucun fond chargé';}
 function loadBgFromServer(){const img=new Image();img.onload=()=>{bgImage=img;updateBgStatus();};img.onerror=()=>{bgImage=null;updateBgStatus();};img.src=`${API}/map/background?t=${Date.now()}`;}
@@ -481,16 +679,16 @@ function devIcon(d){return TYPES[d.type]?.icon||d.type.charAt(0).toUpperCase();}
 
 /* ── Canvas setup ──────────────────────────────────────────── */
 const wrap=document.getElementById('canvas-wrap'),canvas=document.getElementById('map-canvas'),ctx=canvas.getContext('2d');
-function resize(){canvas.width=wrap.clientWidth;canvas.height=wrap.clientHeight;}
+function resize(){if(gpsMode&&gpsBounds){updateCanvasOverlay();return;}canvas.width=wrap.clientWidth;canvas.height=wrap.clientHeight;}
 function toS(rx,ry){return[rx*canvas.width*scale+offX,ry*canvas.height*scale+offY];}
 function toR(sx,sy){return[(sx-offX)/(canvas.width*scale),(sy-offY)/(canvas.height*scale)];}
 function hexA(h,a){return h+Math.round(a*255).toString(16).padStart(2,'0');}
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
-function gSt(g){const dd=g.deviceIds.map(id=>devices.find(d=>d.id===id&&d.onMap)).filter(Boolean);if(dd.some(d=>d.status==='crit'))return'crit';if(dd.some(d=>d.status==='warn'))return'warn';return'ok';}
+function gSt(g){if(g.disabled)return'disabled';const dd=g.deviceIds.map(id=>devices.find(d=>d.id===id&&d.onMap)).filter(Boolean);if(dd.some(d=>d.status==='crit'))return'crit';if(g.placed)return'placed';if(dd.some(d=>d.status==='warn'))return'warn';return'ok';}
 function dGrp(id){return groups.find(g=>g.deviceIds.includes(id));}
 function free(){return devices.filter(d=>d.onMap&&!dGrp(d.id));}
 const DSZ=()=>Math.max(18,24*scale)*iconScale,GPAD=()=>Math.max(14,20*scale)*iconScale,DIG=()=>Math.max(12,16*scale)*iconScale,GCR=()=>Math.max(4,6*scale)*iconScale;
-function gBB(g){const pad=GPAD(),dsz=DIG();const devs=g.deviceIds.map(id=>devices.find(d=>d.id===id&&d.onMap)).filter(Boolean);if(!devs.length){const[cx,cy]=toS(g.x,g.y);const es=30*iconScale;return{x:cx-es,y:cy-es,w:es*2,h:es*2};}const cols=Math.ceil(Math.sqrt(devs.length)),rows=Math.ceil(devs.length/cols);const cellSz=dsz+Math.max(6,8*scale)*iconScale;const iW=cols*cellSz-Math.max(6,8*scale)*iconScale,iH=rows*cellSz-Math.max(6,8*scale)*iconScale;const[cx,cy]=toS(g.x,g.y);const bw=iW+pad*2,bh=iH+pad*2+Math.max(14,18*scale)*iconScale;return{x:cx-bw/2,y:cy-bh/2,w:bw,h:bh,cols,rows,cellSz,iW,iH,pad,devs,cx,cy};}
+function gBB(g){const pad=GPAD(),dsz=DIG();const devs=g.deviceIds.map(id=>devices.find(d=>d.id===id&&d.onMap)).filter(Boolean);if(!devs.length){const[cx,cy]=toS(g.x,g.y);const es=30*iconScale;return{x:cx-es,y:cy-es,w:es*2,h:es*2,devs:[],cx,cy,pad};}const cols=Math.ceil(Math.sqrt(devs.length)),rows=Math.ceil(devs.length/cols);const cellSz=dsz+Math.max(6,8*scale)*iconScale;const iW=cols*cellSz-Math.max(6,8*scale)*iconScale,iH=rows*cellSz-Math.max(6,8*scale)*iconScale;const[cx,cy]=toS(g.x,g.y);const bw=iW+pad*2,bh=iH+pad*2+Math.max(14,18*scale)*iconScale;return{x:cx-bw/2,y:cy-bh/2,w:bw,h:bh,cols,rows,cellSz,iW,iH,pad,devs,cx,cy};}
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
@@ -499,13 +697,14 @@ function draw(){
   const SZ=DSZ(),half=SZ/2,CR=Math.max(2,3*scale)*iconScale;
   for(const g of groups){
     const st=gSt(g),bb=gBB(g);const{x:bx,y:by,w:bw,h:bh,cols,cellSz,pad,devs,cx,cy}=bb;
-    if(!devs||!devs.length)continue;
     const gcr=GCR(),dsz=DIG(),dh=dsz/2;
-    const gc={ok:TYPES[devs[0]?.type]?.color||'#378ADD',warn:'#EF9F27',crit:'#E24B4A'}[st];
+    const gc={ok:TYPES[devs&&devs[0]?.type]?.color||'#378ADD',placed:'#1D9E75',warn:'#EF9F27',crit:'#E24B4A',disabled:'#6b7280'}[st]||'#6b7280';
     const iHG=hovered&&hovered.type==='group'&&hovered.ref===g;
-    if(disp.halos&&(st==='crit'||st==='warn')){const p=0.5+0.5*Math.sin(pulseT*(st==='crit'?3:1.5));const p2=6+p*10;rr(bx-p2,by-p2,bw+p2*2,bh+p2*2,gcr+5);ctx.fillStyle=hexA(gc,0.15+0.12*p);ctx.fill();ctx.strokeStyle=hexA(gc,0.45+0.3*p);ctx.lineWidth=2;ctx.stroke();}
-    rr(bx,by,bw,bh,gcr);ctx.fillStyle=hexA(gc,0.1);ctx.fill();ctx.strokeStyle=hexA(gc,iHG?0.9:0.45);ctx.lineWidth=iHG?2:1.5;ctx.stroke();
+    if(g.disabled)ctx.globalAlpha=0.45;
+    if(devs&&devs.length&&disp.halos&&(st==='crit'||st==='warn')){const p=0.5+0.5*Math.sin(pulseT*(st==='crit'?3:1.5));const p2=6+p*10;rr(bx-p2,by-p2,bw+p2*2,bh+p2*2,gcr+5);ctx.fillStyle=hexA(gc,0.15+0.12*p);ctx.fill();ctx.strokeStyle=hexA(gc,0.45+0.3*p);ctx.lineWidth=2;ctx.stroke();}
+    rr(bx,by,bw,bh,gcr);ctx.fillStyle=hexA(gc,0.1);ctx.fill();ctx.strokeStyle=g.disabled?'rgba(107,114,128,0.5)':hexA(gc,iHG?0.9:0.45);ctx.lineWidth=iHG?2:1.5;if(g.disabled||!devs||!devs.length){ctx.setLineDash([4,3]);}ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle=mapLight?'rgba(20,25,40,0.9)':'rgba(220,227,245,0.85)';ctx.font=`600 ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(g.name,cx,by+Math.max(4,5*scale)*iconScale);
+    if(devs&&devs.length){
     const lH=Math.max(14,18*scale)*iconScale,cTop=by+pad+lH;
     for(let i=0;i<devs.length;i++){const d=devs[i],col=i%cols,row=Math.floor(i/cols);const dx=bx+pad+col*cellSz+dsz/2,dy=cTop+row*cellSz+dsz/2;const t=TYPES[d.type]||{color:'#666'},dcr=Math.max(1.5,2*scale)*iconScale;
       if(disp.halos&&(d.status==='crit'||d.status==='warn')){const p=0.5+0.5*Math.sin(pulseT*(d.status==='crit'?3.2:1.8));const hp=2+p*3;rr(dx-dh-hp,dy-dh-hp,dsz+hp*2,dsz+hp*2,dcr+2);ctx.fillStyle=hexA(d.status==='crit'?'#E24B4A':'#EF9F27',0.25+0.15*p);ctx.fill();}
@@ -513,7 +712,11 @@ function draw(){
       const iHD=hovered&&hovered.type==='dig'&&hovered.ref===d;if(iHD){ctx.strokeStyle='rgba(255,255,255,0.85)';ctx.lineWidth=1.5;ctx.stroke();}
       ctx.fillStyle='rgba(255,255,255,0.9)';ctx.font=`bold ${Math.max(7,8*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(devIcon(d),dx,dy);
       const dr=Math.max(2,2.5*scale)*iconScale;ctx.beginPath();ctx.arc(dx+dh,dy-dh,dr,0,Math.PI*2);ctx.fillStyle=SDOT[d.status];ctx.fill();ctx.strokeStyle='#0f1117';ctx.lineWidth=1;ctx.stroke();}
-    const bx2=bx+bw-Math.max(8,10*scale)*iconScale,by2=by+bh-Math.max(8,10*scale)*iconScale;ctx.beginPath();ctx.arc(bx2,by2,Math.max(7,9*scale)*iconScale,0,Math.PI*2);ctx.fillStyle=gc;ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,9*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.deviceIds.length,bx2,by2);}
+    const bx2=bx+bw-Math.max(8,10*scale)*iconScale,by2=by+bh-Math.max(8,10*scale)*iconScale;ctx.beginPath();ctx.arc(bx2,by2,Math.max(7,9*scale)*iconScale,0,Math.PI*2);ctx.fillStyle=gc;ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,9*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.deviceIds.length,bx2,by2);
+    }else{ctx.fillStyle=hexA(gc,0.4);ctx.font=`${Math.max(16,20*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('+',cx,cy+Math.max(4,5*scale)*iconScale);}
+    if(g.disabled){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(bx+br,by+br,br,0,Math.PI*2);ctx.fillStyle='rgba(107,114,128,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⏸',bx+br,by+br);}
+    if(st==='placed'){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(bx+bw-br,by+br,br,0,Math.PI*2);ctx.fillStyle='rgba(29,158,117,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',bx+bw-br,by+br);}
+    ctx.globalAlpha=1;}
   for(const d of free()){const[sx,sy]=toS(d.x,d.y),t=TYPES[d.type]||{color:'#666'},iH=hovered&&hovered.type==='dev'&&hovered.ref===d;
     if(disp.halos&&(d.status==='crit'||d.status==='warn')){const p=0.5+0.5*Math.sin(pulseT*(d.status==='crit'?3:1.5));const pp=5+p*7,hc=d.status==='crit'?'#E24B4A':'#EF9F27';rr(sx-half-pp,sy-half-pp,SZ+pp*2,SZ+pp*2,CR+3);ctx.fillStyle=hexA(hc,0.22+0.15*p);ctx.fill();ctx.strokeStyle=hexA(hc,0.5+0.3*p);ctx.lineWidth=1.5;ctx.stroke();}
     rr(sx-half,sy-half,SZ,SZ,CR);ctx.fillStyle=t.color;ctx.fill();if(iH){ctx.strokeStyle='rgba(255,255,255,0.85)';ctx.lineWidth=2;ctx.stroke();}
@@ -521,6 +724,13 @@ function draw(){
     const dr=Math.max(3,4*scale)*iconScale;ctx.beginPath();ctx.arc(sx+half,sy-half,dr,0,Math.PI*2);ctx.fillStyle=SDOT[d.status];ctx.fill();ctx.strokeStyle='#0f1117';ctx.lineWidth=1.5;ctx.stroke();
     if(disp.labels&&scale>0.45){ctx.fillStyle=mapLight?'rgba(20,25,50,0.85)':'rgba(200,207,225,0.8)';ctx.font=`${Math.max(9,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(d.name,sx,sy+half+4*scale);}
     if(groupMode&&selGrp.has(d.id)){rr(sx-half-3,sy-half-3,SZ+6,SZ+6,CR+2);ctx.strokeStyle='#EF9F27';ctx.lineWidth=2;ctx.stroke();}}
+  // User GPS position
+  if(gpsMode&&gpsBounds&&gpsBounds.nw&&gpsBounds.se&&userGps&&showUserGps){
+    const rx=(userGps.lng-gpsBounds.nw.lng)/(gpsBounds.se.lng-gpsBounds.nw.lng);
+    const ry=(userGps.lat-gpsBounds.nw.lat)/(gpsBounds.se.lat-gpsBounds.nw.lat);
+    if(rx>=0&&rx<=1&&ry>=0&&ry<=1){const[sx,sy]=toS(rx,ry);const pr=7+3*Math.abs(Math.sin(pulseT*2));
+      ctx.beginPath();ctx.arc(sx,sy,pr*2.2,0,Math.PI*2);ctx.fillStyle='rgba(59,130,246,0.18)';ctx.fill();
+      ctx.beginPath();ctx.arc(sx,sy,7*iconScale,0,Math.PI*2);ctx.fillStyle='#3b82f6';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();}}
   const onMap=devices.filter(d=>d.onMap);
   document.getElementById('st').textContent=`${onMap.length}/${devices.length} sur la carte · ${groups.length} groupes`;
   document.getElementById('sok').textContent=`${onMap.filter(d=>d.status==='ok').length} OK`;
@@ -537,12 +747,12 @@ function hDIG(sx,sy){for(const g of groups){const bb=gBB(g);if(!bb.devs)continue
 /* ── Device popup ──────────────────────────────────────────── */
 const dp=document.getElementById('dpopup');
 function DR(l,v,c=''){return`<div class="dpr"><span class="dprl">${l}</span><span class="dprv ${c}">${v}</span></div>`;}
-function showDP(d,sx,sy){const t=TYPES[d.type]||{color:'#666',label:d.type};let h=`<div class="dph"><div class="dpsq" style="background:${t.color}"></div><div><div class="dpnm">${d.name}</div><div class="dpty">${t.label}</div></div></div>`;h+=DR('IP',d.ip||'—');h+=DR('Ping',d.ping?'Actif':'Inactif',d.ping?'ok':'c');if(d.latency!=null)h+=DR('Latence',d.latency+' ms',d.latency>15?'w':'');if(d.signal!=null)h+=DR('Signal',d.signal+' dBm',d.signal<-75?'w':'');if(d.channel!=null)h+=DR('Canal radio',d.channel);if(d.clients!=null)h+=DR('Clients',d.clients);if(d.ports!=null)h+=DR('Ports UP/Total',`${d.portsUp}/${d.ports}`,d.portsUp<d.ports*.5?'w':'');if(d.resolution)h+=DR('Résolution',d.resolution);if(d.fps!=null)h+=DR('FPS',d.fps+' fps',d.fps<15?'c':'');if(d.uptime)h+=DR('Uptime',d.uptime);if(d.trigger)h+=`<div class="dptg"><div class="tl">⚡ Trigger</div><div class="tm">${d.trigger}</div></div>`;dp.innerHTML=h;let px=sx+16,py=sy-10;if(px+270>wrap.clientWidth)px=sx-270-8;if(py+310>wrap.clientHeight)py=sy-290;if(py<0)py=4;dp.style.left=px+'px';dp.style.top=py+'px';dp.classList.add('v');}
+function showDP(d,sx,sy){const t=TYPES[d.type]||{color:'#666',label:d.type};let h=`<div class="dph"><div class="dpsq" style="background:${t.color}"></div><div><div class="dpnm">${d.name}</div><div class="dpty">${t.label}</div></div></div>`;h+=DR('IP',d.ip||'—');h+=DR('Ping',d.ping?'Actif':'Inactif',d.ping?'ok':'c');if(d.latency!=null)h+=DR('Latence',d.latency+' ms',d.latency>15?'w':'');if(d.signal!=null)h+=DR('Signal',d.signal+' dBm',d.signal<-75?'w':'');if(d.channel!=null)h+=DR('Canal radio',d.channel);if(d.clients!=null)h+=DR('Clients',d.clients);if(d.ports!=null)h+=DR('Ports UP/Total',`${d.portsUp}/${d.ports}`,d.portsUp<d.ports*.5?'w':'');if(d.resolution)h+=DR('Résolution',d.resolution);if(d.fps!=null)h+=DR('FPS',d.fps+' fps',d.fps<15?'c':'');if(d.uptime)h+=DR('Uptime',d.uptime);if(d.trigger)h+=`<div class="dptg"><div class="tl">⚡ Trigger</div><div class="tm">${d.trigger}</div></div>`;const _dgps=deviceToGps(d);if(_dgps)h+=`<div class="dpr"><span class="dprl">GPS</span><span class="dprv"><a href="${gmapsUrl(_dgps.lat,_dgps.lng)}" target="_blank" style="color:#378ADD;text-decoration:none;font-size:11px">${_dgps.lat.toFixed(5)}, ${_dgps.lng.toFixed(5)} ↗</a></span></div>`;dp.innerHTML=h;let px=sx+16,py=sy-10;if(px+270>wrap.clientWidth)px=sx-270-8;if(py+310>wrap.clientHeight)py=sy-290;if(py<0)py=4;dp.style.left=px+'px';dp.style.top=py+'px';dp.classList.add('v');}
 function hideDP(){dp.classList.remove('v');}
 
 /* ── Group popup ───────────────────────────────────────────── */
 const gp=document.getElementById('gpopup');
-function rgp(){if(!activeGroup)return;const g=activeGroup;document.getElementById('gpnd').textContent=g.name;document.getElementById('gpni').value=g.name;const l=document.getElementById('gdl');l.innerHTML='';for(const id of g.deviceIds){const d=devices.find(x=>x.id===id);if(!d)continue;const t=TYPES[d.type]||{color:'#666'};const it=document.createElement('div');it.className='gdi';it.innerHTML=`<div class="gdsq" style="background:${t.color}"></div><span class="gdnm">${d.name}</span><div class="gdst" style="background:${SDOT[d.status]}"></div><button class="gdej" data-id="${id}">✕</button>`;it.querySelector('.gdej').addEventListener('click',async e=>{e.stopPropagation();g.deviceIds=g.deviceIds.filter(x=>x!==id);if(!g.deviceIds.length){await aDG(g.id);return;}await aUG(g);rgp();});l.appendChild(it);}}
+function rgp(){if(!activeGroup)return;const g=activeGroup;document.getElementById('gpnd').textContent=g.name;const _ggps=groupToGps(g),gpEl=document.getElementById('gp-gps');if(gpEl){if(_ggps){gpEl.style.display='';gpEl.innerHTML=`📍 <a href="${gmapsUrl(_ggps.lat,_ggps.lng)}" target="_blank" style="color:#378ADD;text-decoration:none">${_ggps.lat.toFixed(5)}, ${_ggps.lng.toFixed(5)} ↗</a>`;}else gpEl.style.display='none';}document.getElementById('gpni').value=g.name;const pb=document.getElementById('gppause');pb.textContent=g.disabled?'▶ Activer':'⏸ Désactiver';pb.classList.toggle('on',!!g.disabled);document.getElementById('gpplaced').classList.toggle('on',!!g.placed);const l=document.getElementById('gdl');l.innerHTML='';for(const id of g.deviceIds){const d=devices.find(x=>x.id===id);if(!d)continue;const t=TYPES[d.type]||{color:'#666'};const it=document.createElement('div');it.className='gdi';it.innerHTML=`<div class="gdsq" style="background:${t.color}"></div><span class="gdnm">${d.name}</span><div class="gdst" style="background:${SDOT[d.status]}"></div><button class="gdej" data-id="${id}">✕</button>`;it.querySelector('.gdej').addEventListener('click',async e=>{e.stopPropagation();g.deviceIds=g.deviceIds.filter(x=>x!==id);if(!g.deviceIds.length){await aDG(g.id);return;}await aUG(g);rgp();});l.appendChild(it);}}
 function showGP(g,sx,sy){activeGroup=g;rgp();stopRen();let px=sx+20,py=sy-10;if(px+270>wrap.clientWidth)px=sx-270-8;if(py+350>wrap.clientHeight)py=sy-320;if(py<0)py=4;gp.style.left=px+'px';gp.style.top=py+'px';gp.style.display='block';requestAnimationFrame(()=>gp.classList.add('v'));}
 function hideGP(){stopRen();gp.classList.remove('v');setTimeout(()=>{if(!gp.classList.contains('v'))gp.style.display='none';},150);activeGroup=null;}
 function startRen(){document.getElementById('gpnd').style.display='none';const i=document.getElementById('gpni');i.style.display='block';i.focus();i.select();}
@@ -553,6 +763,8 @@ document.getElementById('gpni').addEventListener('keydown',e=>{if(e.key==='Enter
 document.getElementById('gpni').addEventListener('blur',stopRen);
 document.getElementById('gpcl').addEventListener('click',hideGP);
 document.getElementById('gpdl').addEventListener('click',async()=>{if(activeGroup)await aDG(activeGroup.id);});
+document.getElementById('gpplaced').addEventListener('click',async()=>{if(!activeGroup)return;activeGroup.placed=!activeGroup.placed;await aUG(activeGroup);rgp();});
+document.getElementById('gppause').addEventListener('click',async()=>{if(!activeGroup)return;activeGroup.disabled=!activeGroup.disabled;await aUG(activeGroup);rgp();});
 document.getElementById('gpug').addEventListener('click',async()=>{if(activeGroup)await aDG(activeGroup.id);});
 
 /* ── API helpers ───────────────────────────────────────────── */
@@ -562,7 +774,7 @@ async function aSP(id,x,y){try{await fetch(`${API}/devices/${encodeURIComponent(
 async function aCG(name,x,y,deviceIds){const r=await fetch(`${API}/groups`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,x,y,deviceIds})}).then(r=>r.json());groups.push(r);return r;}
 async function aUG(g){await fetch(`${API}/groups/${g.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(g)});}
 async function aDG(id){await fetch(`${API}/groups/${id}`,{method:'DELETE'});groups=groups.filter(g=>g.id!==id);hideGP();}
-function updBadge(){const n=devices.filter(d=>d.onMap&&d.status==='crit').length;const b=document.getElementById('abadge');if(n>0){b.textContent=n;b.style.display='inline';}else b.style.display='none';}
+function updBadge(){const dis=new Set(groups.filter(g=>g.disabled).flatMap(g=>g.deviceIds));const n=devices.filter(d=>d.onMap&&d.status==='crit'&&!dis.has(d.id)).length;const b=document.getElementById('abadge');if(n>0){b.textContent=n;b.style.display='inline';}else b.style.display='none';}
 
 /* ── Categories ────────────────────────────────────────────── */
 async function fetchCategories(){
@@ -672,6 +884,8 @@ document.addEventListener('mouseup',async e=>{
     const x=Math.max(.02,Math.min(.97,rx)),y=Math.max(.02,Math.min(.97,ry));
     await aSP(dragSb.id,x,y);
     dragSb.dev.x=x;dragSb.dev.y=y;dragSb.dev.onMap=true;
+    const og=hGrp(sx,sy);
+    if(og&&!og.deviceIds.includes(dragSb.id)){og.deviceIds.push(dragSb.id);await aUG(og);}
     buildSidebar();
   }
   dragSb=null;
@@ -683,8 +897,15 @@ wrap.addEventListener('contextmenu',e=>{
   e.preventDefault();
   const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
   const d=hDev(sx,sy);
-  if(!d){ctxMenu.style.display='none';return;}
-  ctxTarget=d;
+  const ng=document.getElementById('ctx-new-group'),cr=document.getElementById('ctx-remove'),cs1=document.getElementById('ctx-sep1');
+  if(!d){
+    const[rx,ry]=toR(sx,sy);newGroupPos={x:Math.max(.02,Math.min(.97,rx)),y:Math.max(.02,Math.min(.97,ry))};
+    ctxTarget=null;document.getElementById('ctx-devname').textContent='';
+    cs1.style.display='none';cr.style.display='none';ng.style.display='flex';
+    ctxMenu.style.left=e.clientX+'px';ctxMenu.style.top=e.clientY+'px';ctxMenu.style.display='block';
+    return;
+  }
+  ctxTarget=d;ng.style.display='none';cs1.style.display='';cr.style.display='';
   document.getElementById('ctx-devname').textContent=d.name;
   ctxMenu.style.left=e.clientX+'px';
   ctxMenu.style.top=e.clientY+'px';
@@ -696,6 +917,7 @@ wrap.addEventListener('contextmenu',e=>{
   });
 });
 document.addEventListener('click',e=>{if(!e.target.closest('#ctx-menu'))ctxMenu.style.display='none';});
+document.getElementById('ctx-new-group').addEventListener('click',()=>{ctxMenu.style.display='none';openModal(newGroupPos);});
 document.getElementById('ctx-remove').addEventListener('click',async()=>{
   if(!ctxTarget)return;
   ctxMenu.style.display='none';
@@ -781,10 +1003,10 @@ async function deleteCat(id){
 document.getElementById('btn-add-cat').addEventListener('click',()=>openCatModal(null));
 
 /* ── Group modal ───────────────────────────────────────────── */
-function openModal(){const c=document.getElementById('mdv');c.innerHTML='';for(const d of free()){const t=TYPES[d.type]||{label:d.type};const it=document.createElement('div');it.className='mdi';it.innerHTML=`<input type="checkbox" value="${d.id}"${selGrp.has(d.id)?' checked':''}><div class="mdin">${d.name}</div><div class="mdit">${t.label}</div>`;c.appendChild(it);}document.getElementById('mn').value='';document.getElementById('ov-group').classList.remove('h');}
+function openModal(pos){newGroupPos=pos||null;const c=document.getElementById('mdv');c.innerHTML='';for(const d of free()){const t=TYPES[d.type]||{label:d.type};const it=document.createElement('div');it.className='mdi';it.innerHTML=`<input type="checkbox" value="${d.id}"${selGrp.has(d.id)?' checked':''}><div class="mdin">${d.name}</div><div class="mdit">${t.label}</div>`;c.appendChild(it);}document.getElementById('mn').value='';document.getElementById('ov-group').classList.remove('h');}
 function closeModal(){document.getElementById('ov-group').classList.add('h');}
 document.getElementById('mca').addEventListener('click',closeModal);
-document.getElementById('mco').addEventListener('click',async()=>{const nm=document.getElementById('mn').value.trim()||'Groupe';const ids=[...document.querySelectorAll('#mdv input:checked')].map(i=>i.value);if(!ids.length){alert('Sélectionne au moins un device.');return;}const devs=ids.map(id=>devices.find(d=>d.id===id)).filter(Boolean);const cx=devs.reduce((s,d)=>s+d.x,0)/devs.length,cy=devs.reduce((s,d)=>s+d.y,0)/devs.length;await aCG(nm,cx,cy,ids);selGrp.clear();groupMode=false;document.getElementById('btn-gmode').classList.remove('gon');closeModal();});
+document.getElementById('mco').addEventListener('click',async()=>{const nm=document.getElementById('mn').value.trim()||'Groupe';const ids=[...document.querySelectorAll('#mdv input:checked')].map(i=>i.value);let cx,cy;if(ids.length){const devs=ids.map(id=>devices.find(d=>d.id===id)).filter(Boolean);cx=devs.reduce((s,d)=>s+d.x,0)/devs.length;cy=devs.reduce((s,d)=>s+d.y,0)/devs.length;}else if(newGroupPos){cx=newGroupPos.x;cy=newGroupPos.y;}else{const[rx,ry]=toR(canvas.width/2,canvas.height/2);cx=Math.max(.02,Math.min(.97,rx));cy=Math.max(.02,Math.min(.97,ry));}await aCG(nm,cx,cy,ids);selGrp.clear();groupMode=false;document.getElementById('btn-gmode').classList.remove('gon');newGroupPos=null;closeModal();});
 
 /* ── Settings ──────────────────────────────────────────────── */
 async function openSettings(){
@@ -808,6 +1030,13 @@ async function openSettings(){
   document.getElementById('dmaplight').checked=mapLight;
   document.getElementById('icon-scale').value=iconScale;
   document.getElementById('icon-scale-val').textContent=Math.round(iconScale*100)+'%';
+  // GPS settings
+  document.getElementById('dgps').checked=gpsMode;
+  document.getElementById('gps-sub').style.display=gpsMode?'block':'none';
+  document.getElementById('gps-opa').value=overlayOpacity;
+  document.getElementById('gps-opa-val').textContent=Math.round(overlayOpacity*100)+'%';
+  document.getElementById('dgps-loc').checked=showUserGps;
+  syncGpsFields();updateGpsBoundsInfo();
   buildClrEd();
   triggersData=await fetch(`${API}/triggers`).then(r=>r.json());
   // Ensure all categories have an entry
@@ -824,7 +1053,7 @@ document.getElementById('bg-upload-btn').addEventListener('click',()=>document.g
 document.getElementById('bg-upload').addEventListener('change',e=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{setBgImage(ev.target.result);};reader.readAsDataURL(file);e.target.value='';});
 document.getElementById('bg-clear').addEventListener('click',()=>{clearBgImage();});
 document.getElementById('icon-scale').addEventListener('input',e=>{const v=parseFloat(e.target.value);document.getElementById('icon-scale-val').textContent=Math.round(v*100)+'%';iconScale=v;});
-document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
+document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display,#st-gps').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
 document.getElementById('ztest').addEventListener('click',async()=>{const cfg={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value,path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value};const res=document.getElementById('ztres');res.style.color='var(--text3)';res.textContent='Connexion…';try{const r=await fetch(`${API}/config/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}).then(r=>r.json());if(r.ok){res.style.color='var(--ok)';res.textContent=`✓ Zabbix API v${r.version}`;}else{res.style.color='var(--crit)';res.textContent=`✗ ${r.error}`;}}catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}});
 document.getElementById('spsv').addEventListener('click',async()=>{
   const z={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value||'80',path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value,refresh:parseInt(document.getElementById('zri').value)||30,timeout:parseInt(document.getElementById('zto').value)||10,autoRefresh:document.getElementById('zar').checked};
@@ -838,6 +1067,21 @@ document.getElementById('spsv').addEventListener('click',async()=>{
   localStorage.setItem('solidayMap.iconScale',iconScale);
   mapLight=document.getElementById('dmaplight').checked;
   localStorage.setItem('solidayMap.mapLight',mapLight?'1':'0');
+  // Save GPS settings
+  const nwlat=parseFloat(document.getElementById('gps-nw-lat').value),nwlng=parseFloat(document.getElementById('gps-nw-lng').value);
+  const selat=parseFloat(document.getElementById('gps-se-lat').value),selng=parseFloat(document.getElementById('gps-se-lng').value);
+  if(!isNaN(nwlat)&&!isNaN(nwlng)&&!isNaN(selat)&&!isNaN(selng)){
+    gpsBounds={nw:{lat:nwlat,lng:nwlng},se:{lat:selat,lng:selng}};
+  }else if(document.getElementById('gps-nw-lat').value===''){gpsBounds=null;}
+  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:gpsBounds})});
+  const prevGps=gpsMode;
+  gpsMode=document.getElementById('dgps').checked;
+  overlayOpacity=parseFloat(document.getElementById('gps-opa').value)||0.75;
+  showUserGps=document.getElementById('dgps-loc').checked;
+  localStorage.setItem('solidayMap.gpsMode',gpsMode?'1':'0');
+  localStorage.setItem('solidayMap.overlayOpacity',String(overlayOpacity));
+  localStorage.setItem('solidayMap.gpsLoc',showUserGps?'1':'0');
+  if(gpsMode!==prevGps||gpsMode)applyGpsMode();
   disp=d;lgnd();buildSidebar();
   const b=document.getElementById('bsv');b.classList.add('on');setTimeout(()=>b.classList.remove('on'),2500);
 });
@@ -884,11 +1128,11 @@ document.getElementById('ov-alerts').addEventListener('click',e=>{if(e.target.id
 document.querySelectorAll('.ahf').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.ahf').forEach(x=>x.classList.remove('on'));b.classList.add('on');alertFilter=b.dataset.f;loadAlerts();}));
 
 /* ── Mouse on canvas ───────────────────────────────────────── */
-wrap.addEventListener('mousedown',e=>{if(e.target!==canvas)return;if(dragSb)return;e.preventDefault();mdAt={x:e.clientX,y:e.clientY};const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(groupMode){const d=hDev(sx,sy);if(d){selGrp.has(d.id)?selGrp.delete(d.id):selGrp.add(d.id);if(selGrp.size>0)openModal();return;}}const g=hGrp(sx,sy);if(g&&!locked){dragObj={type:'group',ref:g};return;}const d=hDev(sx,sy);if(d&&!locked){dragObj={type:'dev',ref:d};return;}dragging=true;dragStart={x:e.clientX-offX,y:e.clientY-offY};wrap.classList.add('grabbing');});
-document.addEventListener('mousemove',e=>{if(dragSb)return;const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj){const[rx,ry]=toR(sx,sy);dragObj.ref.x=Math.max(.02,Math.min(.97,rx));dragObj.ref.y=Math.max(.02,Math.min(.97,ry));hideDP();return;}if(dragging){offX=e.clientX-dragStart.x;offY=e.clientY-dragStart.y;hideDP();return;}const wr=wrap.getBoundingClientRect();if(e.clientX<wr.left||e.clientX>wr.right||e.clientY<wr.top||e.clientY>wr.bottom){return;}const dig=hDIG(sx,sy);if(dig){hovered={type:'dig',ref:dig.device};wrap.style.cursor='default';showDP(dig.device,sx,sy);return;}const g=hGrp(sx,sy),d=!g?hDev(sx,sy):null;hovered=g?{type:'group',ref:g}:d?{type:'dev',ref:d}:null;wrap.style.cursor=hovered?(locked?'pointer':'move'):'grab';if(d)showDP(d,sx,sy);else hideDP();});
-document.addEventListener('mouseup',e=>{if(!dragging&&!dragObj&&!mdAt)return;const mv=mdAt&&(Math.abs(e.clientX-mdAt.x)>5||Math.abs(e.clientY-mdAt.y)>5);if(dragObj&&mv){if(dragObj.type==='dev')aSP(dragObj.ref.id,dragObj.ref.x,dragObj.ref.y);if(dragObj.type==='group')aUG(dragObj.ref);}dragObj=null;dragging=false;wrap.classList.remove('grabbing');mdAt=null;if(mv)return;const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;const g=hGrp(sx,sy);if(g)showGP(g,sx,sy);});
+wrap.addEventListener('mousedown',e=>{if(gpsMode)return;if(e.target!==canvas)return;if(dragSb)return;e.preventDefault();mdAt={x:e.clientX,y:e.clientY};const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(groupMode){const d=hDev(sx,sy);if(d){selGrp.has(d.id)?selGrp.delete(d.id):selGrp.add(d.id);if(selGrp.size>0)openModal();return;}}const g=hGrp(sx,sy);if(g&&!locked){dragObj={type:'group',ref:g};return;}const d=hDev(sx,sy);if(d&&!locked){dragObj={type:'dev',ref:d};return;}dragging=true;dragStart={x:e.clientX-offX,y:e.clientY-offY};wrap.classList.add('grabbing');});
+document.addEventListener('mousemove',e=>{if(dragSb)return;if(gpsMode)return;const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj){const[rx,ry]=toR(sx,sy);dragObj.ref.x=Math.max(.02,Math.min(.97,rx));dragObj.ref.y=Math.max(.02,Math.min(.97,ry));hideDP();return;}if(dragging){offX=e.clientX-dragStart.x;offY=e.clientY-dragStart.y;hideDP();return;}const wr=wrap.getBoundingClientRect();if(e.clientX<wr.left||e.clientX>wr.right||e.clientY<wr.top||e.clientY>wr.bottom){return;}const dig=hDIG(sx,sy);if(dig){hovered={type:'dig',ref:dig.device};wrap.style.cursor='default';showDP(dig.device,sx,sy);return;}const g=hGrp(sx,sy),d=!g?hDev(sx,sy):null;hovered=g?{type:'group',ref:g}:d?{type:'dev',ref:d}:null;wrap.style.cursor=hovered?(locked?'pointer':'move'):'grab';if(d)showDP(d,sx,sy);else hideDP();});
+document.addEventListener('mouseup',async e=>{if(gpsMode)return;if(!dragging&&!dragObj&&!mdAt)return;const mv=mdAt&&(Math.abs(e.clientX-mdAt.x)>5||Math.abs(e.clientY-mdAt.y)>5);const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj&&mv){if(dragObj.type==='dev'){const og=hGrp(sx,sy);if(og&&!og.deviceIds.includes(dragObj.ref.id)){const old=dGrp(dragObj.ref.id);if(old&&old!==og){old.deviceIds=old.deviceIds.filter(x=>x!==dragObj.ref.id);old.deviceIds.length?await aUG(old):await aDG(old.id);}og.deviceIds.push(dragObj.ref.id);await aUG(og);}else aSP(dragObj.ref.id,dragObj.ref.x,dragObj.ref.y);}if(dragObj.type==='group')aUG(dragObj.ref);}dragObj=null;dragging=false;wrap.classList.remove('grabbing');mdAt=null;if(mv)return;const g=hGrp(sx,sy);if(g)showGP(g,sx,sy);});
 wrap.addEventListener('mouseleave',()=>{if(!dragging&&!dragObj){hideDP();hovered=null;wrap.style.cursor='grab';}});
-wrap.addEventListener('wheel',e=>{e.preventDefault();const rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top,f=e.deltaY<0?1.12:0.9,ns=Math.max(.2,Math.min(5,scale*f));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;},{passive:false});
+wrap.addEventListener('wheel',e=>{if(gpsMode)return;e.preventDefault();const rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top,f=e.deltaY<0?1.12:0.9,ns=Math.max(.2,Math.min(5,scale*f));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;},{passive:false});
 let lT=null;
 wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;const g=hGrp(sx,sy);if(g&&!locked)dragObj={type:'group',ref:g};else{const d=hDev(sx,sy);if(d&&!locked)dragObj={type:'dev',ref:d};else{dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}}lT=Array.from(e.touches);},{passive:true});
 wrap.addEventListener('touchmove',e=>{if(e.touches.length===2&&lT&&lT.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY),pd=Math.hypot(lT[0].clientX-lT[1].clientX,lT[0].clientY-lT[1].clientY);const cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;const rect=canvas.getBoundingClientRect(),mx=cx-rect.left,my=cy-rect.top,ns=Math.max(.2,Math.min(5,scale*(d/pd)));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;}else if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;if(dragObj){const[rx,ry]=toR(sx,sy);dragObj.ref.x=Math.max(.02,Math.min(.97,rx));dragObj.ref.y=Math.max(.02,Math.min(.97,ry));}else if(dragging){offX=t.clientX-dragStart.x;offY=t.clientY-dragStart.y;}}lT=Array.from(e.touches);},{passive:true});
@@ -922,6 +1166,10 @@ document.getElementById('btn-sidebar').classList.add('active');
 fetchCategories().then(()=>{
   loadData();
   animate();
+  fetch(`${API}/config`).then(r=>r.json()).then(cfg=>{
+    if(cfg.gps)gpsBounds=cfg.gps;
+    if(gpsMode)applyGpsMode();
+  }).catch(()=>{if(gpsMode)applyGpsMode();});
   setInterval(loadData,30000);
 });
 </script>

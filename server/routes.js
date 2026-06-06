@@ -121,17 +121,17 @@ router.get('/groups', (req, res) => {
 });
 
 router.post('/groups', (req, res) => {
-  const { name, x, y, deviceIds } = req.body;
-  if (!name || !deviceIds) return res.status(400).json({ error: 'name and deviceIds required' });
+  const { name, x, y, deviceIds = [], placed = 0 } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
   const id = uuid();
-  db.createGroup(id, name, x || 0.5, y || 0.5, deviceIds);
-  res.json({ id, name, x, y, deviceIds });
+  db.createGroup(id, name, x || 0.5, y || 0.5, deviceIds, placed);
+  res.json({ id, name, x: x || 0.5, y: y || 0.5, deviceIds, disabled: 0, placed: placed ? 1 : 0 });
 });
 
 router.put('/groups/:id', (req, res) => {
-  const { name, x, y, deviceIds } = req.body;
-  if (!name || !deviceIds) return res.status(400).json({ error: 'name and deviceIds required' });
-  db.updateGroup(req.params.id, name, x, y, deviceIds);
+  const { name, x, y, deviceIds = [], disabled, placed } = req.body;
+  if (!name) return res.status(400).json({ error: 'name required' });
+  db.updateGroup(req.params.id, name, x, y, deviceIds, disabled, placed);
   res.json({ ok: true });
 });
 
