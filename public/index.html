@@ -583,11 +583,12 @@ const RotatableImageOverlay=L.ImageOverlay.extend({
 
 function updateBgOverlay(){
   if(bgOverlay){bgOverlay.remove();bgOverlay=null;}
-  if(!lmap||!gpsBounds||!gpsBounds.nw||!gpsBounds.se||!gpsBounds.nw.lat||!bgImage)return;
+  if(!lmap||!bgImage)return;
+  if(!gpsBounds||gpsBounds.nw==null||gpsBounds.se==null||gpsBounds.nw.lat==null||gpsBounds.se.lat==null)return;
   bgOverlay=new RotatableImageOverlay(
     `${API}/map/background?t=${Date.now()}`,
     [[gpsBounds.nw.lat,gpsBounds.nw.lng],[gpsBounds.se.lat,gpsBounds.se.lng]],
-    {opacity:overlayOpacity,rotation:overlayRotation,interactive:false}
+    {opacity:overlayOpacity,rotation:overlayRotation,interactive:false,pane:'overlayPane'}
   );
   bgOverlay.addTo(lmap);
   if(placeMode)setupOverlayDrag();
@@ -656,8 +657,7 @@ async function saveStartView(){
   if(!lmap)return;
   const c=lmap.getCenter();
   savedView={lat:c.lat,lng:c.lng,zoom:lmap.getZoom(),bearing:mapBearing};
-  const payload=gpsBounds?{...gpsBounds,rotation:overlayRotation,bearing:mapBearing,view:savedView}:{view:savedView};
-  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:payload})});
+  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mapview:savedView})});
   const btn=document.getElementById('pl-view');
   btn.textContent='✓ Vue sauvegardée';setTimeout(()=>{btn.textContent='📍 Vue de départ';},2000);
 }
@@ -730,7 +730,7 @@ function updateGpsBoundsInfo(){
 async function saveGpsBounds(){
   localStorage.setItem('solidayMap.overlayRot',String(overlayRotation));
   localStorage.setItem('solidayMap.bearing',String(mapBearing));
-  const payload=gpsBounds?{...gpsBounds,rotation:overlayRotation,bearing:mapBearing,view:savedView||undefined}:null;
+  const payload=gpsBounds?{...gpsBounds,rotation:overlayRotation,bearing:mapBearing}:null;
   await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:payload})});
   updateBgOverlay();
   updateCanvasOverlay();
@@ -1229,7 +1229,7 @@ document.getElementById('spsv').addEventListener('click',async()=>{
   if(!isNaN(nwlat)&&!isNaN(nwlng)&&!isNaN(selat)&&!isNaN(selng)){
     gpsBounds={nw:{lat:nwlat,lng:nwlng},se:{lat:selat,lng:selng}};
   }else if(document.getElementById('gps-nw-lat').value===''){gpsBounds=null;}
-  const gpsSave=gpsBounds?{...gpsBounds,rotation:overlayRotation,bearing:mapBearing}:null;
+  const gpsSave=gpsBounds?{nw:gpsBounds.nw,se:gpsBounds.se,rotation:overlayRotation,bearing:mapBearing}:null;
   await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:gpsSave})});
   const prevGps=gpsMode;
   gpsMode=document.getElementById('dgps').checked;
@@ -1324,7 +1324,8 @@ fetchCategories().then(()=>{
   loadData();
   animate();
   fetch(`${API}/config`).then(r=>r.json()).then(cfg=>{
-    if(cfg.gps){gpsBounds=cfg.gps;if(cfg.gps.rotation!=null)overlayRotation=cfg.gps.rotation;if(cfg.gps.bearing!=null)mapBearing=cfg.gps.bearing;if(cfg.gps.view)savedView=cfg.gps.view;}
+    if(cfg.gps){gpsBounds=cfg.gps;if(cfg.gps.rotation!=null)overlayRotation=cfg.gps.rotation;if(cfg.gps.bearing!=null)mapBearing=cfg.gps.bearing;}
+    if(cfg.mapview)savedView=cfg.mapview;
     if(gpsMode)applyGpsMode();
   }).catch(()=>{if(gpsMode)applyGpsMode();});
   setInterval(loadData,30000);

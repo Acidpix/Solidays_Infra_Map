@@ -144,8 +144,10 @@ router.delete('/groups/:id', (req, res) => {
 router.get('/config', (req, res) => {
   const zabbixCfg = db.getConfig('zabbix') || {};
   const displayCfg = db.getConfig('display') || {};
+  const gpsCfg = db.getConfig('gps') || null;
+  const mapviewCfg = db.getConfig('mapview') || null;
   const safe = { ...zabbixCfg, pass: zabbixCfg.pass ? '••••••••' : '' };
-  res.json({ zabbix: safe, display: displayCfg });
+  res.json({ zabbix: safe, display: displayCfg, gps: gpsCfg, mapview: mapviewCfg });
 });
 
 router.post('/config', (req, res) => {
@@ -157,6 +159,8 @@ router.post('/config', (req, res) => {
     scheduleRefresh();
   }
   if (display) db.setConfig('display', display);
+  if ('gps' in req.body) db.setConfig('gps', req.body.gps);
+  if ('mapview' in req.body) db.setConfig('mapview', req.body.mapview);
   res.json({ ok: true });
 });
 
