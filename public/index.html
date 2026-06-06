@@ -276,8 +276,8 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 #btn-place.vis{display:inline-flex}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
-<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js" crossorigin=""></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js" crossorigin=""></script>
 </head>
 <body>
 <div id="app">
@@ -340,6 +340,7 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
   <span style="opacity:0.75;font-size:11px">Glissez le plan · Ajustez</span>
   <label style="display:flex;align-items:center;gap:5px;font-size:12px">Plan&nbsp;<input type="range" id="pl-rot" min="-180" max="180" step="0.5" style="width:90px;accent-color:#fff"><span id="pl-rot-val" style="min-width:34px">0°</span></label>
   <label style="display:flex;align-items:center;gap:5px;font-size:12px">OSM&nbsp;<input type="range" id="pl-bearing" min="-180" max="180" step="0.5" style="width:90px;accent-color:#aef"><span id="pl-bearing-val" style="min-width:34px">0°</span></label>
+  <button id="pl-view">📍 Vue de départ</button>
   <button id="pl-save">💾 Enregistrer</button>
   <button id="pl-close">✕ Fermer</button>
 </div>
@@ -544,6 +545,7 @@ let lmap=null,userGps=null,gpsWatchId=null,calibStep=0;
 let placeMode=false,bgOverlay=null;
 let overlayRotation=parseFloat(localStorage.getItem('solidayMap.overlayRot')||'0');
 let mapBearing=parseFloat(localStorage.getItem('solidayMap.bearing')||'0');
+let savedView=null; // {lat,lng,zoom,bearing}
 let _plDragStart=null,_plBoundsAtDrag=null;
 
 function canvasToGps(rx,ry){
@@ -560,12 +562,9 @@ function gmapsUrl(lat,lng){return`https://maps.google.com/?q=${lat.toFixed(6)},$
 function fmtCoord(c){return`${c.lat.toFixed(5)}, ${c.lng.toFixed(5)}`;}
 
 function updateCanvasOverlay(){
-  if(!lmap||!gpsBounds||!gpsBounds.nw||!gpsBounds.se)return;
-  const nwPt=lmap.latLngToContainerPoint(L.latLng(gpsBounds.nw.lat,gpsBounds.nw.lng));
-  const sePt=lmap.latLngToContainerPoint(L.latLng(gpsBounds.se.lat,gpsBounds.se.lng));
-  const left=Math.min(nwPt.x,sePt.x),top=Math.min(nwPt.y,sePt.y);
-  const w=Math.max(10,Math.abs(sePt.x-nwPt.x)),h=Math.max(10,Math.abs(sePt.y-nwPt.y));
-  canvas.style.left=left+'px';canvas.style.top=top+'px';
+  if(!lmap)return;
+  canvas.style.left='0';canvas.style.top='0';
+  const w=wrap.clientWidth,h=wrap.clientHeight;
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
   scale=1;offX=0;offY=0;
   draw();
@@ -588,7 +587,7 @@ function updateBgOverlay(){
   bgOverlay=new RotatableImageOverlay(
     `${API}/map/background?t=${Date.now()}`,
     [[gpsBounds.nw.lat,gpsBounds.nw.lng],[gpsBounds.se.lat,gpsBounds.se.lng]],
-    {opacity:overlayOpacity,rotation:overlayRotation,interactive:false,zIndex:0}
+    {opacity:overlayOpacity,rotation:overlayRotation,interactive:false}
   );
   bgOverlay.addTo(lmap);
   if(placeMode)setupOverlayDrag();
@@ -638,15 +637,29 @@ function startLeaflet(){
   lmap=L.map('lmap',{zoomControl:true,attributionControl:false,rotate:true,touchRotate:false});
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:22}).addTo(lmap);
   L.control.attribution({position:'bottomright',prefix:'© <a href="https://openstreetmap.org/copyright">OpenStreetMap</a>'}).addTo(lmap);
-  lmap.on('move zoom resize',updateCanvasOverlay);
-  if(gpsBounds&&gpsBounds.nw&&gpsBounds.se&&gpsBounds.nw.lat&&gpsBounds.se.lat){
+  lmap.on('move zoom resize rotate',updateCanvasOverlay);
+  if(savedView){
+    lmap.setView([savedView.lat,savedView.lng],savedView.zoom);
+    if(savedView.bearing!=null)lmap.setBearing(savedView.bearing);
+  }else if(gpsBounds&&gpsBounds.nw&&gpsBounds.se&&gpsBounds.nw.lat&&gpsBounds.se.lat){
     lmap.fitBounds([[gpsBounds.nw.lat,gpsBounds.nw.lng],[gpsBounds.se.lat,gpsBounds.se.lng]],{padding:[50,50]});
+    if(mapBearing)lmap.setBearing(mapBearing);
   }else{
     lmap.setView([48.8566,2.3522],16);
+    if(mapBearing)lmap.setBearing(mapBearing);
   }
-  if(mapBearing)lmap.setBearing(mapBearing);
   updateCanvasOverlay();
   updateBgOverlay();
+}
+
+async function saveStartView(){
+  if(!lmap)return;
+  const c=lmap.getCenter();
+  savedView={lat:c.lat,lng:c.lng,zoom:lmap.getZoom(),bearing:mapBearing};
+  const payload=gpsBounds?{...gpsBounds,rotation:overlayRotation,bearing:mapBearing,view:savedView}:{view:savedView};
+  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:payload})});
+  const btn=document.getElementById('pl-view');
+  btn.textContent='✓ Vue sauvegardée';setTimeout(()=>{btn.textContent='📍 Vue de départ';},2000);
 }
 
 function stopLeaflet(){
@@ -717,7 +730,7 @@ function updateGpsBoundsInfo(){
 async function saveGpsBounds(){
   localStorage.setItem('solidayMap.overlayRot',String(overlayRotation));
   localStorage.setItem('solidayMap.bearing',String(mapBearing));
-  const payload=gpsBounds?{...gpsBounds,rotation:overlayRotation,bearing:mapBearing}:null;
+  const payload=gpsBounds?{...gpsBounds,rotation:overlayRotation,bearing:mapBearing,view:savedView||undefined}:null;
   await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:payload})});
   updateBgOverlay();
   updateCanvasOverlay();
@@ -801,6 +814,7 @@ document.getElementById('gps-opa').addEventListener('input',e=>{overlayOpacity=p
 // Placement bar wiring
 document.getElementById('btn-place').addEventListener('click',()=>{if(!gpsMode)return;startPlaceMode();});
 document.getElementById('pl-close').addEventListener('click',stopPlaceMode);
+document.getElementById('pl-view').addEventListener('click',saveStartView);
 document.getElementById('pl-save').addEventListener('click',async()=>{await saveGpsBounds();});
 document.getElementById('pl-rot').addEventListener('input',e=>{
   overlayRotation=parseFloat(e.target.value);
@@ -815,8 +829,14 @@ document.getElementById('pl-bearing').addEventListener('input',e=>{
   if(lmap&&lmap.setBearing)lmap.setBearing(mapBearing);
 });
 
-function resize(){if(gpsMode&&gpsBounds){updateCanvasOverlay();return;}canvas.width=wrap.clientWidth;canvas.height=wrap.clientHeight;}
-function toS(rx,ry){return[rx*canvas.width*scale+offX,ry*canvas.height*scale+offY];}
+function resize(){if(gpsMode){updateCanvasOverlay();return;}canvas.width=wrap.clientWidth;canvas.height=wrap.clientHeight;}
+function toS(rx,ry){
+  if(gpsMode&&lmap&&gpsBounds){
+    const g=canvasToGps(rx,ry);
+    if(g){const p=lmap.latLngToContainerPoint(L.latLng(g.lat,g.lng));return[p.x,p.y];}
+  }
+  return[rx*canvas.width*scale+offX,ry*canvas.height*scale+offY];
+}
 function toR(sx,sy){return[(sx-offX)/(canvas.width*scale),(sy-offY)/(canvas.height*scale)];}
 function hexA(h,a){return h+Math.round(a*255).toString(16).padStart(2,'0');}
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
@@ -1304,7 +1324,7 @@ fetchCategories().then(()=>{
   loadData();
   animate();
   fetch(`${API}/config`).then(r=>r.json()).then(cfg=>{
-    if(cfg.gps){gpsBounds=cfg.gps;if(cfg.gps.rotation!=null)overlayRotation=cfg.gps.rotation;if(cfg.gps.bearing!=null)mapBearing=cfg.gps.bearing;}
+    if(cfg.gps){gpsBounds=cfg.gps;if(cfg.gps.rotation!=null)overlayRotation=cfg.gps.rotation;if(cfg.gps.bearing!=null)mapBearing=cfg.gps.bearing;if(cfg.gps.view)savedView=cfg.gps.view;}
     if(gpsMode)applyGpsMode();
   }).catch(()=>{if(gpsMode)applyGpsMode();});
   setInterval(loadData,30000);
