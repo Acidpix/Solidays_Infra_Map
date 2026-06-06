@@ -635,6 +635,20 @@ function startCalib(step){
   });
 }
 
+function updateBgStatus(){const status=document.getElementById('bg-status');if(!status)return;status.textContent=bgImage?'Fond de carte chargé':'Aucun fond chargé';}
+function loadBgFromServer(){const img=new Image();img.onload=()=>{bgImage=img;updateBgStatus();};img.onerror=()=>{bgImage=null;updateBgStatus();};img.src=`${API}/map/background?t=${Date.now()}`;}
+async function setBgImage(dataUrl){try{await fetch(`${API}/map/background`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:dataUrl})});loadBgFromServer();}catch(e){console.error('bg upload error',e);}}
+async function clearBgImage(){try{await fetch(`${API}/map/background`,{method:'DELETE'});}catch(e){}bgImage=null;updateBgStatus();}
+function loadBgImage(){loadBgFromServer();}
+
+/* ── TYPES & Legend ────────────────────────────────────────── */
+function initTypes(cats){cats.forEach(c=>{TYPES[c.id]={label:c.name,color:c.color,icon:c.icon||c.name.charAt(0).toUpperCase()};});}
+function lgnd(){const w=document.getElementById('legend-wrap');w.innerHTML=categories.map(c=>`<div class="leg"><div class="leg-sq" style="background:${TYPES[c.id]?.color||c.color}"></div>${c.name}</div>`).join('');}
+function devIcon(d){return TYPES[d.type]?.icon||d.type.charAt(0).toUpperCase();}
+
+/* ── Canvas setup ──────────────────────────────────────────── */
+const wrap=document.getElementById('canvas-wrap'),canvas=document.getElementById('map-canvas'),ctx=canvas.getContext('2d');
+
 // GPS mode item interaction — canvas has pointer-events:none, we use wrap
 wrap.addEventListener('mousemove',e=>{
   if(!gpsMode)return;
@@ -664,21 +678,8 @@ document.getElementById('gps-calib-se').addEventListener('click',()=>startCalib(
 document.getElementById('gps-calib-abort').addEventListener('click',()=>{calibStep=0;document.getElementById('gps-calib-bar').style.display='none';if(lmap)lmap.off('click');});
 document.getElementById('gps-calib-clear').addEventListener('click',async()=>{gpsBounds=null;await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({gps:null})});if(lmap){canvas.style.left='0';canvas.style.top='0';if(gpsMode)resize();}updateGpsBoundsInfo();syncGpsFields();});
 document.getElementById('dgps').addEventListener('change',e=>{document.getElementById('gps-sub').style.display=e.target.checked?'block':'none';});
-document.getElementById('gps-opa').addEventListener('input',e=>{overlayOpacity=parseFloat(e.target.value);document.getElementById('gps-opa-val').textContent=Math.round(overlayOpacity*100)+'%';if(gpsMode)canvas.style.opacity=String(overlayOpacity);}); // null=new, string=edit existing
+document.getElementById('gps-opa').addEventListener('input',e=>{overlayOpacity=parseFloat(e.target.value);document.getElementById('gps-opa-val').textContent=Math.round(overlayOpacity*100)+'%';if(gpsMode)canvas.style.opacity=String(overlayOpacity);});
 
-function updateBgStatus(){const status=document.getElementById('bg-status');if(!status)return;status.textContent=bgImage?'Fond de carte chargé':'Aucun fond chargé';}
-function loadBgFromServer(){const img=new Image();img.onload=()=>{bgImage=img;updateBgStatus();};img.onerror=()=>{bgImage=null;updateBgStatus();};img.src=`${API}/map/background?t=${Date.now()}`;}
-async function setBgImage(dataUrl){try{await fetch(`${API}/map/background`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:dataUrl})});loadBgFromServer();}catch(e){console.error('bg upload error',e);}}
-async function clearBgImage(){try{await fetch(`${API}/map/background`,{method:'DELETE'});}catch(e){}bgImage=null;updateBgStatus();}
-function loadBgImage(){loadBgFromServer();}
-
-/* ── TYPES & Legend ────────────────────────────────────────── */
-function initTypes(cats){cats.forEach(c=>{TYPES[c.id]={label:c.name,color:c.color,icon:c.icon||c.name.charAt(0).toUpperCase()};});}
-function lgnd(){const w=document.getElementById('legend-wrap');w.innerHTML=categories.map(c=>`<div class="leg"><div class="leg-sq" style="background:${TYPES[c.id]?.color||c.color}"></div>${c.name}</div>`).join('');}
-function devIcon(d){return TYPES[d.type]?.icon||d.type.charAt(0).toUpperCase();}
-
-/* ── Canvas setup ──────────────────────────────────────────── */
-const wrap=document.getElementById('canvas-wrap'),canvas=document.getElementById('map-canvas'),ctx=canvas.getContext('2d');
 function resize(){if(gpsMode&&gpsBounds){updateCanvasOverlay();return;}canvas.width=wrap.clientWidth;canvas.height=wrap.clientHeight;}
 function toS(rx,ry){return[rx*canvas.width*scale+offX,ry*canvas.height*scale+offY];}
 function toR(sx,sy){return[(sx-offX)/(canvas.width*scale),(sy-offY)/(canvas.height*scale)];}
