@@ -8,6 +8,10 @@ set -e
 INSTALL_DIR="/opt/netmap"
 SERVICE_USER="netmap"
 PORT=3000
+HTTPS_PORT=3443
+SSL_DIR="$INSTALL_DIR/ssl"
+SSL_KEY="$SSL_DIR/netmap.key"
+SSL_CERT="$SSL_DIR/netmap.crt"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;35m'; NC='\033[0m'
 info()    { echo -e "${CYAN}[INFO]${NC} $1"; }
@@ -43,7 +47,7 @@ fi
 
 # ── 2. Dépendances système ───────────────────────────────────
 info "Installation des dépendances système..."
-apt-get install -y python3 make g++ sqlite3 2>/dev/null || true
+apt-get install -y python3 make g++ sqlite3 openssl 2>/dev/null || true
 success "Dépendances OK"
 
 # ── 3. Répertoire installation ───────────────────────────────
@@ -52,6 +56,7 @@ mkdir -p "$INSTALL_DIR/db"
 mkdir -p "$INSTALL_DIR/data"
 mkdir -p "$INSTALL_DIR/server"
 mkdir -p "$INSTALL_DIR/public"
+mkdir -p "$SSL_DIR"
 
 # ── 4. Copie des fichiers ────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -72,7 +77,17 @@ cd "$INSTALL_DIR"
 npm install --omit=dev 2>&1 | tail -5
 success "npm install OK"
 
-# ── 6. Utilisateur système ───────────────────────────────────
+# ── 6. Certificat SSL auto-signé ────────────────────────────
+info "Génération du certificat SSL auto-signé (valide 10 ans)..."
+IP_ADDR=$(hostname -I | awk '{print $1}')
+openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
+  -keyout "$SSL_KEY" -out "$SSL_CERT" \
+  -subj "/C=FR/ST=France/L=Local/O=NetMap/CN=${IP_ADDR}" \
+  -addext "subjectAltName=IP:${IP_ADDR},IP:127.0.0.1" \
+  2>/dev/null
+success "Certificat SSL généré → $SSL_CERT"
+
+# ── 6b. Utilisateur système ──────────────────────────────────
 info "Création de l'utilisateur système '$SERVICE_USER'..."
 if ! id "$SERVICE_USER" &>/dev/null; then
   useradd --system --no-create-home --shell /bin/false "$SERVICE_USER"
@@ -81,6 +96,9 @@ else
   warn "Utilisateur '$SERVICE_USER' déjà existant"
 fi
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
+chmod 750 "$SSL_DIR"
+chmod 640 "$SSL_KEY" "$SSL_CERT"
+chown root:"$SERVICE_USER" "$SSL_KEY" "$SSL_CERT"
 
 # ── 7. Service systemd ───────────────────────────────────────
 info "Création du service systemd..."
@@ -103,6 +121,9 @@ StandardError=journal
 SyslogIdentifier=netmap
 Environment=NODE_ENV=production
 Environment=PORT=${PORT}
+Environment=HTTPS_PORT=${HTTPS_PORT}
+Environment=SSL_KEY=${SSL_KEY}
+Environment=SSL_CERT=${SSL_CERT}
 
 # Sécurité
 NoNewPrivileges=true
@@ -129,8 +150,9 @@ fi
 
 # ── 9. Firewall (optionnel) ──────────────────────────────────
 if command -v ufw &>/dev/null; then
-  ufw allow $PORT/tcp comment 'NetMap' 2>/dev/null || true
-  info "Règle UFW ajoutée pour le port $PORT"
+  ufw allow $PORT/tcp      comment 'NetMap HTTP'  2>/dev/null || true
+  ufw allow $HTTPS_PORT/tcp comment 'NetMap HTTPS' 2>/dev/null || true
+  info "Règles UFW ajoutées pour les ports $PORT (HTTP) et $HTTPS_PORT (HTTPS)"
 fi
 
 # ── Résumé ───────────────────────────────────────────────────
@@ -140,13 +162,16 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}  ✓ NetMap installé avec succès !${NC}"
 echo -e "${GREEN}══════════════════════════════════════════════${NC}"
 echo ""
-echo -e "  URL : ${CYAN}http://${IP}:${PORT}${NC}"
+echo -e "  HTTP  : ${CYAN}http://${IP}:${PORT}${NC}"
+echo -e "  HTTPS : ${CYAN}https://${IP}:${HTTPS_PORT}${NC}  ${YELLOW}(certificat auto-signé)${NC}"
 echo ""
 echo "  Commandes utiles :"
-echo "    systemctl status netmap      # état du service"
-echo "    systemctl restart netmap     # redémarrage"
-echo "    journalctl -u netmap -f      # logs en direct"
-echo "    sqlite3 $INSTALL_DIR/db/netmap.db  # console DB"
+echo "    systemctl status netmap                    # état du service"
+echo "    systemctl restart netmap                   # redémarrage"
+echo "    journalctl -u netmap -f                    # logs en direct"
+echo "    sqlite3 $INSTALL_DIR/db/netmap.db          # console DB"
+echo "    openssl x509 -in $SSL_CERT -noout -dates   # validité du certificat"
 echo ""
+echo -e "${YELLOW}  ➜ Certificat auto-signé : acceptez l'exception de sécurité dans votre navigateur${NC}"
 echo -e "${YELLOW}  ➜ Configurez Zabbix dans l'interface → Paramètres${NC}"
 echo ""

@@ -274,6 +274,33 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 #gps-calib-bar button:hover,#gps-place-bar button:hover{background:rgba(255,255,255,0.32)}
 #btn-place{display:none}
 #btn-place.vis{display:inline-flex}
+#map-canvas{touch-action:none}
+/* ── Responsive / Mobile ─────────────────────────────────────── */
+@media (max-width:768px){
+  *{-webkit-tap-highlight-color:transparent}
+  #topbar{height:auto;min-height:52px;padding:6px 8px;gap:6px;overflow-x:auto;flex-wrap:nowrap}
+  #topbar .logo{font-size:13px}
+  #topbar .logo img{height:22px}
+  .tb-btn{padding:6px 9px;font-size:12px}
+  .sep{display:none}
+  /* Sidebar en tiroir au-dessus de la carte */
+  #sidebar{position:absolute;top:0;bottom:0;left:0;z-index:400;width:78vw;max-width:300px;box-shadow:4px 0 24px rgba(0,0,0,0.5)}
+  #sidebar.closed{width:0;box-shadow:none}
+  #main{position:relative}
+  /* Barres GPS en bas, pleine largeur, défilables */
+  #gps-calib-bar,#gps-place-bar{top:auto;bottom:0;left:0;right:0;transform:none;width:100%;max-width:100%;border-radius:0;padding:8px 10px;gap:8px;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start}
+  #gps-place-bar label,#gps-calib-bar span{flex-shrink:0}
+  #gps-place-bar input[type=range]{width:70px}
+  #gps-calib-bar button,#gps-place-bar button{padding:7px 12px;font-size:12px;flex-shrink:0}
+  /* Popups équipement / groupe : largeur écran */
+  #dpopup,#gpopup{max-width:92vw}
+  /* Panneau réglages plein écran */
+  .sp{width:100vw;height:100vh;max-height:100vh;border-radius:0}
+  .sptabs{overflow-x:auto;white-space:nowrap}
+  .spb{padding:14px}
+  #sb{gap:10px;font-size:10px;overflow-x:auto;white-space:nowrap}
+  .leaflet-control-zoom{margin-bottom:80px!important}
+}
 </style>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -338,6 +365,7 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 <div id="gps-place-bar">
   <span style="font-weight:600">🗺️ Mode placement</span>
   <span style="opacity:0.75;font-size:11px">Glissez le plan · Ajustez</span>
+  <label style="display:flex;align-items:center;gap:5px;font-size:12px">Taille&nbsp;<input type="range" id="pl-scale" min="0.2" max="3" step="0.01" value="1" style="width:90px;accent-color:#fe9"><span id="pl-scale-val" style="min-width:38px">100%</span></label>
   <label style="display:flex;align-items:center;gap:5px;font-size:12px">Plan&nbsp;<input type="range" id="pl-rot" min="-180" max="180" step="0.5" style="width:90px;accent-color:#fff"><span id="pl-rot-val" style="min-width:34px">0°</span></label>
   <label style="display:flex;align-items:center;gap:5px;font-size:12px">OSM&nbsp;<input type="range" id="pl-bearing" min="-180" max="180" step="0.5" style="width:90px;accent-color:#aef"><span id="pl-bearing-val" style="min-width:34px">0°</span></label>
   <button id="pl-ratio">⊡ Ratio</button>
@@ -547,8 +575,8 @@ let placeMode=false,bgOverlay=null;
 let overlayRotation=parseFloat(localStorage.getItem('solidayMap.overlayRot')||'0');
 let mapBearing=parseFloat(localStorage.getItem('solidayMap.bearing')||'0');
 let savedView=null; // {lat,lng,zoom,bearing}
-let _plDragStart=null,_plBoundsAtDrag=null;
-let gpsDragObj=null,gpsDragMoved=false; // déplacement d'un device/groupe en mode GPS
+let _plDragStart=null,_plBoundsAtDrag=null,_plScale=1;
+let gpsDragObj=null,gpsDragMoved=false,gpsPending=null; // déplacement d'un device/groupe en mode GPS
 
 function canvasToGps(rx,ry){
   if(!gpsBounds)return null;
@@ -622,32 +650,38 @@ function setupOverlayDrag(){
   el.style.pointerEvents='all';
   el.removeEventListener('mousedown',_onOvMd);
   el.addEventListener('mousedown',_onOvMd);
+  el.removeEventListener('touchstart',_onOvMd);
+  el.addEventListener('touchstart',_onOvMd,{passive:false});
 }
 
 function _onOvMd(e){
   if(!placeMode)return;
-  L.DomEvent.stopPropagation(e);
-  const rect=lmap.getContainer().getBoundingClientRect();
-  _plDragStart=lmap.containerPointToLatLng(L.point(e.clientX-rect.left,e.clientY-rect.top));
+  L.DomEvent.stopPropagation(e);if(e.preventDefault)e.preventDefault();
+  const xy=evXY(e),rect=lmap.getContainer().getBoundingClientRect();
+  _plDragStart=lmap.containerPointToLatLng(L.point(xy.x-rect.left,xy.y-rect.top));
   _plBoundsAtDrag={nw:{...gpsBounds.nw},se:{...gpsBounds.se}};
   if(bgOverlay&&bgOverlay.getElement())bgOverlay.getElement().style.cursor='grabbing';
   document.addEventListener('mousemove',_onOvMv);
+  document.addEventListener('touchmove',_onOvMv,{passive:false});
   document.addEventListener('mouseup',_onOvMu,{once:true});
+  document.addEventListener('touchend',_onOvMu,{once:true});
 }
 
 function _onOvMv(e){
   if(!_plDragStart||!lmap)return;
-  const rect=lmap.getContainer().getBoundingClientRect();
-  const pt=lmap.containerPointToLatLng(L.point(e.clientX-rect.left,e.clientY-rect.top));
+  const xy=evXY(e),rect=lmap.getContainer().getBoundingClientRect();
+  const pt=lmap.containerPointToLatLng(L.point(xy.x-rect.left,xy.y-rect.top));
   const dlat=pt.lat-_plDragStart.lat,dlng=pt.lng-_plDragStart.lng;
   gpsBounds={nw:{lat:_plBoundsAtDrag.nw.lat+dlat,lng:_plBoundsAtDrag.nw.lng+dlng},se:{lat:_plBoundsAtDrag.se.lat+dlat,lng:_plBoundsAtDrag.se.lng+dlng}};
   if(bgOverlay)bgOverlay.setBounds([[gpsBounds.nw.lat,gpsBounds.nw.lng],[gpsBounds.se.lat,gpsBounds.se.lng]]);
   updateCanvasOverlay();
   syncGpsFields();
+  if(e.preventDefault)e.preventDefault();
 }
 
 function _onOvMu(){
   document.removeEventListener('mousemove',_onOvMv);
+  document.removeEventListener('touchmove',_onOvMv);
   _plDragStart=null;
   if(bgOverlay&&bgOverlay.getElement())bgOverlay.getElement().style.cursor='grab';
 }
@@ -697,6 +731,17 @@ function fixBoundsAspect(){
   updateBgOverlay();updateCanvasOverlay();updateGpsBoundsInfo();syncGpsFields();
 }
 
+// Redimensionne les bounds autour de leur centre (préserve le ratio)
+function scaleBounds(f){
+  if(!gpsBounds||gpsBounds.nw==null||gpsBounds.nw.lat==null)return;
+  const cLat=(gpsBounds.nw.lat+gpsBounds.se.lat)/2,cLng=(gpsBounds.nw.lng+gpsBounds.se.lng)/2;
+  gpsBounds={
+    nw:{lat:cLat+(gpsBounds.nw.lat-cLat)*f,lng:cLng+(gpsBounds.nw.lng-cLng)*f},
+    se:{lat:cLat+(gpsBounds.se.lat-cLat)*f,lng:cLng+(gpsBounds.se.lng-cLng)*f}
+  };
+  updateBgOverlay();updateCanvasOverlay();updateGpsBoundsInfo();syncGpsFields();
+}
+
 function stopLeaflet(){
   if(!lmap)return;
   if(bgOverlay){bgOverlay.remove();bgOverlay=null;}
@@ -714,6 +759,7 @@ function startPlaceMode(){
   document.getElementById('pl-rot-val').textContent=Math.round(overlayRotation)+'°';
   document.getElementById('pl-bearing').value=mapBearing;
   document.getElementById('pl-bearing-val').textContent=Math.round(mapBearing)+'°';
+  _plScale=1;document.getElementById('pl-scale').value=1;document.getElementById('pl-scale-val').textContent='100%';
   closeSettings();
   if(!lmap)startLeaflet();
   // Pas encore de calibration : crée des bounds par défaut au centre, en respectant le ratio de l'image
@@ -758,10 +804,13 @@ function applyGpsMode(){
 }
 
 function startGpsWatch(){
-  if(!navigator.geolocation)return;
+  if(!navigator.geolocation){alert('Géolocalisation non supportée par ce navigateur.');return;}
+  if(!window.isSecureContext&&location.hostname!=='localhost'&&location.hostname!=='127.0.0.1'){
+    alert("⚠ La géolocalisation nécessite HTTPS.\nVotre position ne s'affichera pas en accès http://"+location.hostname+"\nUtilisez https:// ou localhost.");
+  }
   gpsWatchId=navigator.geolocation.watchPosition(
     p=>{userGps={lat:p.coords.latitude,lng:p.coords.longitude};},
-    e=>{console.warn('GPS',e.message);},
+    e=>{console.warn('GPS',e.message);if(e.code===1)alert('Accès à la position refusé. Autorisez la géolocalisation dans votre navigateur.');},
     {enableHighAccuracy:true,maximumAge:5000}
   );
 }
@@ -827,74 +876,71 @@ function devIcon(d){return TYPES[d.type]?.icon||d.type.charAt(0).toUpperCase();}
 /* ── Canvas setup ──────────────────────────────────────────── */
 const wrap=document.getElementById('canvas-wrap'),canvas=document.getElementById('map-canvas'),ctx=canvas.getContext('2d');
 
-// GPS mode item interaction — canvas has pointer-events:none, we use wrap.
-// Pour déplacer un device/groupe : on désactive le pan Leaflet quand le curseur survole un item.
+// GPS mode item interaction — souris + tactile unifiés.
+// Récupère les coordonnées client depuis un événement souris OU tactile.
+function evXY(e){const t=e.touches&&e.touches[0]||e.changedTouches&&e.changedTouches[0];return t?{x:t.clientX,y:t.clientY}:{x:e.clientX,y:e.clientY};}
+
+// Survol (desktop uniquement) → tooltips
 wrap.addEventListener('mousemove',e=>{
-  if(!gpsMode)return;
-  if(gpsDragObj)return; // le drag est géré sur document
+  if(!gpsMode||gpsDragObj||gpsPending)return;
   const cRect=canvas.getBoundingClientRect(),wRect=wrap.getBoundingClientRect();
   const csx=e.clientX-cRect.left,csy=e.clientY-cRect.top;
   const wsx=e.clientX-wRect.left,wsy=e.clientY-wRect.top;
-  if(csx<0||csy<0||csx>cRect.width||csy>cRect.height){hideDP();hovered=null;setGpsDragLock(false);return;}
+  if(csx<0||csy<0||csx>cRect.width||csy>cRect.height){hideDP();hovered=null;wrap.style.cursor='';return;}
   const dig=hDIG(csx,csy);
-  if(dig){hovered={type:'dig',ref:dig.device};showDP(dig.device,wsx,wsy);setGpsDragLock(false);return;}
+  if(dig){hovered={type:'dig',ref:dig.device};showDP(dig.device,wsx,wsy);wrap.style.cursor='';return;}
   const g=hGrp(csx,csy),dv=!g?hDev(csx,csy):null;
   hovered=g?{type:'group',ref:g}:dv?{type:'dev',ref:dv}:null;
   if(dv)showDP(dv,wsx,wsy);else hideDP();
-  // verrouille le pan de la carte si on peut saisir l'item
-  setGpsDragLock(!!hovered&&!locked&&!placeMode);
+  wrap.style.cursor=hovered&&!placeMode?(locked?'pointer':'move'):'';
 });
-wrap.addEventListener('mouseleave',e=>{if(gpsMode&&!gpsDragObj){hideDP();hovered=null;setGpsDragLock(false);}});
+wrap.addEventListener('mouseleave',()=>{if(gpsMode&&!gpsDragObj&&!gpsPending){hideDP();hovered=null;}});
 
-function setGpsDragLock(on){
-  if(!lmap||!lmap.dragging)return;
-  if(on&&lmap.dragging.enabled()){lmap.dragging.disable();wrap.style.cursor='move';}
-  else if(!on&&!lmap.dragging.enabled()){lmap.dragging.enable();wrap.style.cursor='';}
-}
-
-wrap.addEventListener('mousedown',e=>{
-  if(!gpsMode||placeMode||locked)return;
-  const cRect=canvas.getBoundingClientRect();
-  const csx=e.clientX-cRect.left,csy=e.clientY-cRect.top;
+// Début d'interaction (capture phase pour bloquer le pan Leaflet avant qu'il ne démarre)
+function gpsDown(e){
+  if(!gpsMode||placeMode)return;
+  const xy=evXY(e),cRect=canvas.getBoundingClientRect();
+  const csx=xy.x-cRect.left,csy=xy.y-cRect.top;
   const g=hGrp(csx,csy),dv=!g?hDev(csx,csy):null;
-  if(g)gpsDragObj={type:'group',ref:g};
-  else if(dv)gpsDragObj={type:'dev',ref:dv};
-  else return;
+  const target=g?{type:'group',ref:g}:dv?{type:'dev',ref:dv}:null;
+  if(!target)return; // pas d'item sous le doigt → on laisse la carte se déplacer
+  gpsPending={target,sx:csx,sy:csy};
   gpsDragMoved=false;
-  if(lmap&&lmap.dragging)lmap.dragging.disable();
+  if(!locked){gpsDragObj=target;if(lmap&&lmap.dragging)lmap.dragging.disable();}
   hideDP();
-  e.preventDefault();
-},true);
+  e.preventDefault();e.stopPropagation();
+}
+wrap.addEventListener('mousedown',gpsDown,true);
+wrap.addEventListener('touchstart',gpsDown,{capture:true,passive:false});
 
-document.addEventListener('mousemove',e=>{
+function gpsMove(e){
   if(!gpsMode||!gpsDragObj||!lmap)return;
-  const wRect=wrap.getBoundingClientRect();
-  const ll=lmap.containerPointToLatLng(L.point(e.clientX-wRect.left,e.clientY-wRect.top));
+  const xy=evXY(e),wRect=wrap.getBoundingClientRect();
+  const ll=lmap.containerPointToLatLng(L.point(xy.x-wRect.left,xy.y-wRect.top));
   const c=gpsToCanvas(ll.lat,ll.lng);if(!c)return;
   gpsDragObj.ref.x=Math.max(.02,Math.min(.98,c.rx));
   gpsDragObj.ref.y=Math.max(.02,Math.min(.98,c.ry));
   gpsDragMoved=true;
-});
+  e.preventDefault();
+}
+document.addEventListener('mousemove',gpsMove);
+document.addEventListener('touchmove',gpsMove,{passive:false});
 
-document.addEventListener('mouseup',async e=>{
-  if(!gpsMode||!gpsDragObj)return;
-  const obj=gpsDragObj;gpsDragObj=null;
+function gpsUp(e){
+  if(!gpsMode||!gpsPending)return;
+  const{target}=gpsPending;const moved=gpsDragMoved;
+  gpsPending=null;gpsDragObj=null;
   if(lmap&&lmap.dragging)lmap.dragging.enable();
-  if(gpsDragMoved){
-    if(obj.type==='dev')aSP(obj.ref.id,obj.ref.x,obj.ref.y);
-    else aUG(obj.ref);
+  if(moved){
+    if(target.type==='dev')aSP(target.ref.id,target.ref.x,target.ref.y);
+    else aUG(target.ref);
+  }else if(target.type==='group'){
+    const wRect=wrap.getBoundingClientRect(),xy=evXY(e);
+    showGP(target.ref,xy.x-wRect.left,xy.y-wRect.top);
   }
-});
-
-wrap.addEventListener('click',e=>{
-  if(!gpsMode)return;
-  const cRect=canvas.getBoundingClientRect(),wRect=wrap.getBoundingClientRect();
-  const csx=e.clientX-cRect.left,csy=e.clientY-cRect.top;
-  const wsx=e.clientX-wRect.left,wsy=e.clientY-wRect.top;
-  const moved=gpsDragMoved;gpsDragMoved=false;
-  if(csx<0||csy<0||csx>cRect.width||csy>cRect.height)return;
-  const g=hGrp(csx,csy);if(g&&!moved)showGP(g,wsx,wsy);
-});
+}
+document.addEventListener('mouseup',gpsUp);
+document.addEventListener('touchend',gpsUp);
 
 // Calibration UI event wiring
 document.getElementById('gps-calib-nw').addEventListener('click',()=>startCalib(1));
@@ -906,7 +952,13 @@ document.getElementById('gps-opa').addEventListener('input',e=>{overlayOpacity=p
 // Placement bar wiring
 document.getElementById('btn-place').addEventListener('click',()=>{if(!gpsMode)return;startPlaceMode();});
 document.getElementById('pl-close').addEventListener('click',stopPlaceMode);
-document.getElementById('pl-ratio').addEventListener('click',fixBoundsAspect);
+document.getElementById('pl-ratio').addEventListener('click',()=>{fixBoundsAspect();_plScale=1;document.getElementById('pl-scale').value=1;document.getElementById('pl-scale-val').textContent='100%';});
+document.getElementById('pl-scale').addEventListener('input',e=>{
+  const nv=parseFloat(e.target.value);
+  document.getElementById('pl-scale-val').textContent=Math.round(nv*100)+'%';
+  const f=nv/_plScale;_plScale=nv;
+  scaleBounds(f);
+});
 document.getElementById('pl-view').addEventListener('click',saveStartView);
 document.getElementById('pl-save').addEventListener('click',async()=>{await saveGpsBounds();});
 document.getElementById('pl-rot').addEventListener('input',e=>{
@@ -974,13 +1026,15 @@ function draw(){
     const dr=Math.max(3,4*scale)*iconScale;ctx.beginPath();ctx.arc(sx+half,sy-half,dr,0,Math.PI*2);ctx.fillStyle=SDOT[d.status];ctx.fill();ctx.strokeStyle='#0f1117';ctx.lineWidth=1.5;ctx.stroke();
     if(disp.labels&&scale>0.45){ctx.fillStyle=mapLight?'rgba(20,25,50,0.85)':'rgba(200,207,225,0.8)';ctx.font=`${Math.max(9,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(d.name,sx,sy+half+4*scale);}
     if(groupMode&&selGrp.has(d.id)){rr(sx-half-3,sy-half-3,SZ+6,SZ+6,CR+2);ctx.strokeStyle='#EF9F27';ctx.lineWidth=2;ctx.stroke();}}
-  // User GPS position
-  if(gpsMode&&gpsBounds&&gpsBounds.nw&&gpsBounds.se&&userGps&&showUserGps){
-    const rx=(userGps.lng-gpsBounds.nw.lng)/(gpsBounds.se.lng-gpsBounds.nw.lng);
-    const ry=(userGps.lat-gpsBounds.nw.lat)/(gpsBounds.se.lat-gpsBounds.nw.lat);
-    if(rx>=0&&rx<=1&&ry>=0&&ry<=1){const[sx,sy]=toS(rx,ry);const pr=7+3*Math.abs(Math.sin(pulseT*2));
+  // Position GPS de l'utilisateur — projetée directement via Leaflet (s'affiche même hors du plan)
+  if(gpsMode&&lmap&&userGps&&showUserGps){
+    const p=lmap.latLngToContainerPoint(L.latLng(userGps.lat,userGps.lng));
+    if(p.x>=-50&&p.x<=canvas.width+50&&p.y>=-50&&p.y<=canvas.height+50){
+      const sx=p.x,sy=p.y,pr=7+3*Math.abs(Math.sin(pulseT*2));
       ctx.beginPath();ctx.arc(sx,sy,pr*2.2,0,Math.PI*2);ctx.fillStyle='rgba(59,130,246,0.18)';ctx.fill();
-      ctx.beginPath();ctx.arc(sx,sy,7*iconScale,0,Math.PI*2);ctx.fillStyle='#3b82f6';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();}}
+      ctx.beginPath();ctx.arc(sx,sy,7*iconScale,0,Math.PI*2);ctx.fillStyle='#3b82f6';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();
+    }
+  }
   const onMap=devices.filter(d=>d.onMap);
   document.getElementById('st').textContent=`${onMap.length}/${devices.length} sur la carte · ${groups.length} groupes`;
   document.getElementById('sok').textContent=`${onMap.filter(d=>d.status==='ok').length} OK`;

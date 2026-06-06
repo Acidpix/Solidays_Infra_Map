@@ -7,6 +7,10 @@ set -e
 
 INSTALL_DIR="/opt/netmap"
 SERVICE_USER="netmap"
+HTTPS_PORT=3443
+SSL_DIR="$INSTALL_DIR/ssl"
+SSL_KEY="$SSL_DIR/netmap.key"
+SSL_CERT="$SSL_DIR/netmap.crt"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;35m'; NC='\033[0m'
 info()    { echo -e "${CYAN}[INFO]${NC} $1"; }
@@ -61,12 +65,41 @@ success "npm install OK"
 
 # ── 5. Dossier data (fond de carte) ──────────────────────
 mkdir -p "$INSTALL_DIR/data"
+mkdir -p "$SSL_DIR"
 
-# Ensure systemd allows writing to data/
+# ── 5b. Certificat SSL ───────────────────────────────────
+if [ -f "$SSL_CERT" ] && [ -f "$SSL_KEY" ]; then
+  success "Certificats SSL existants conservés"
+else
+  info "Certificats SSL manquants, génération..."
+  IP_ADDR=$(hostname -I | awk '{print $1}')
+  openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
+    -keyout "$SSL_KEY" -out "$SSL_CERT" \
+    -subj "/C=FR/ST=France/L=Local/O=NetMap/CN=${IP_ADDR}" \
+    -addext "subjectAltName=IP:${IP_ADDR},IP:127.0.0.1" \
+    2>/dev/null
+  chmod 640 "$SSL_KEY" "$SSL_CERT"
+  chown root:"$SERVICE_USER" "$SSL_KEY" "$SSL_CERT"
+  success "Certificats SSL générés → $SSL_CERT"
+fi
+
+# ── 5c. Mise à jour du service systemd ───────────────────
 SERVICE_FILE="/etc/systemd/system/netmap.service"
+needs_reload=false
+
 if [ -f "$SERVICE_FILE" ] && ! grep -q "$INSTALL_DIR/data" "$SERVICE_FILE"; then
   info "Mise à jour du service systemd (ReadWritePaths)..."
   sed -i "s|ReadWritePaths=.*|ReadWritePaths=${INSTALL_DIR}/db ${INSTALL_DIR}/data|" "$SERVICE_FILE"
+  needs_reload=true
+fi
+
+if [ -f "$SERVICE_FILE" ] && ! grep -q "SSL_KEY" "$SERVICE_FILE"; then
+  info "Ajout de la configuration SSL au service systemd..."
+  sed -i "/Environment=PORT=/a Environment=HTTPS_PORT=${HTTPS_PORT}\nEnvironment=SSL_KEY=${SSL_KEY}\nEnvironment=SSL_CERT=${SSL_CERT}" "$SERVICE_FILE"
+  needs_reload=true
+fi
+
+if $needs_reload; then
   systemctl daemon-reload
   success "Service systemd mis à jour"
 fi
@@ -97,9 +130,11 @@ echo -e "${GREEN}═════════════════════
 echo -e "${GREEN}  ✓ NetMap mis à jour avec succès !${NC}"
 echo -e "${GREEN}══════════════════════════════════════════════${NC}"
 echo ""
-echo -e "  URL : ${CYAN}http://${IP}:${PORT}${NC}"
+echo -e "  HTTP  : ${CYAN}http://${IP}:${PORT}${NC}"
+echo -e "  HTTPS : ${CYAN}https://${IP}:${HTTPS_PORT}${NC}  ${YELLOW}(certificat auto-signé)${NC}"
 echo ""
 echo "  Commandes utiles :"
-echo "    systemctl status netmap      # état du service"
-echo "    journalctl -u netmap -f      # logs en direct"
+echo "    systemctl status netmap                    # état du service"
+echo "    journalctl -u netmap -f                    # logs en direct"
+echo "    openssl x509 -in $SSL_CERT -noout -dates   # validité du certificat"
 echo ""
