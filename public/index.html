@@ -1330,6 +1330,36 @@ function toggleSidebar(){
   document.getElementById('btn-sidebar').classList.toggle('active',sidebarOpen);
 }
 
+/* ── Sidebar resize ─────────────────────────────────────────── */
+(function(){
+  const resizer=document.getElementById('sb-resizer');
+  const sidebar=document.getElementById('sidebar');
+  let dragging=false,startX=0,startW=0;
+  resizer.addEventListener('mousedown',e=>{
+    dragging=true;
+    startX=e.clientX;
+    startW=sidebar.getBoundingClientRect().width;
+    sidebar.style.transition='none';
+    resizer.classList.add('dragging');
+    document.body.style.cursor='col-resize';
+    document.body.style.userSelect='none';
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove',e=>{
+    if(!dragging)return;
+    const w=Math.max(160,Math.min(600,startW+e.clientX-startX));
+    sidebar.style.width=w+'px';
+  });
+  document.addEventListener('mouseup',()=>{
+    if(!dragging)return;
+    dragging=false;
+    resizer.classList.remove('dragging');
+    sidebar.style.transition='';
+    document.body.style.cursor='';
+    document.body.style.userSelect='';
+  });
+})();
+
 /* ── Drag from sidebar ─────────────────────────────────────── */
 const ghost=document.getElementById('drag-ghost');
 function startSbDrag(e){
