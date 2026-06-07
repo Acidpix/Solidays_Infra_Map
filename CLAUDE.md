@@ -56,6 +56,20 @@ Tout le frontend est dans `public/index.html`. Il n'y a pas de build, pas de fra
 - `render()` — boucle de dessin : grille, groupes, équipements, halos, labels
 - `toS(rx, ry)` — coordonnées relatives → pixels écran (mode GPS ou canvas)
 - `toR(sx, sy)` — pixels écran → coordonnées relatives
+- `updateGpsScale()` — en mode GPS, dérive `scale` (taille des icônes) du zoom Leaflet pour
+  que points et équipements grossissent/rétrécissent avec le plan
+
+### Points (groupes) — modèle « zone »
+
+Un point (groupe) est rendu comme une **zone** = boîte englobant ses équipements (plus un padding
+et un bandeau de titre), calculée par `gBB(g)`. Chaque équipement d'un point a une position propre
+(`memberPos` : sa position si déplacé/placé, sinon une grille par défaut autour de l'ancre `g.x,g.y`).
+On peut **déplacer un équipement dans un point** (le contour s'adapte) ou **déplacer le point entier**
+(translation de tous ses membres). Helpers : `dragApply` (drag), `dragCommitGroup` (persistance),
+`dropDevice` (drop = change de point ou enregistre la position). Un équipement membre d'un point
+n'apparaît plus dans sa catégorie en haut de la sidebar (`inAnyGroup`). La sidebar (section « Points »)
+et la carte partagent `groups` ; toute mutation rappelle `buildSidebar()` pour rester synchronisées.
+La création de point se fait par clic droit → « Créer un point » (le bouton « Grouper » a été retiré).
 
 ## Backend — endpoints principaux
 
