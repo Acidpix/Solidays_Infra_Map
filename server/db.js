@@ -77,6 +77,8 @@ db.exec(`
 try { db.exec('ALTER TABLE groups ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0'); } catch (_) {}
 // Migration: add placed column to groups if not present
 try { db.exec('ALTER TABLE groups ADD COLUMN placed INTEGER NOT NULL DEFAULT 0'); } catch (_) {}
+// Migration: add source_id column (id du point distant — synchronisation Device Assigner)
+try { db.exec('ALTER TABLE groups ADD COLUMN source_id TEXT'); } catch (_) {}
 
 // ── Seed default categories ──────────────────────────────────
 const insertCat = db.prepare(`
@@ -161,9 +163,9 @@ module.exports = {
     const getDevices = db.prepare('SELECT device_id FROM group_devices WHERE group_id=?');
     return groups.map(g => ({ ...g, deviceIds: getDevices.all(g.id).map(r => r.device_id) }));
   },
-  createGroup: (id, name, x, y, deviceIds, placed = 0) => {
+  createGroup: (id, name, x, y, deviceIds, placed = 0, sourceId = null) => {
     db.transaction(() => {
-      db.prepare('INSERT INTO groups (id, name, x, y, placed) VALUES (?,?,?,?,?)').run(id, name, x, y, placed ? 1 : 0);
+      db.prepare('INSERT INTO groups (id, name, x, y, placed, source_id) VALUES (?,?,?,?,?,?)').run(id, name, x, y, placed ? 1 : 0, sourceId);
       for (const did of deviceIds)
         db.prepare('INSERT INTO group_devices (group_id, device_id) VALUES (?,?)').run(id, did);
     })();

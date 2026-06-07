@@ -471,6 +471,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
       <div class="spt" data-t="triggers">Triggers</div>
       <div class="spt" data-t="display">Affichage</div>
       <div class="spt" data-t="gps">GPS / Carte</div>
+      <div class="spt" data-t="sync">Synchronisation</div>
     </div>
     <div class="spb">
       <div id="st-zabbix">
@@ -529,6 +530,14 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
             <button class="mb ca" id="gps-calib-clear">Effacer</button>
           </div>
           <div id="gps-bounds-info" style="font-size:11px;color:var(--text3)"></div>
+        </div>
+      </div>
+      <div id="st-sync" style="display:none">
+        <div class="sps"><div class="spst">Source externe — Device Assigner</div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Crée un groupe par point distant (ou met à jour ceux existants) et y place le matériel correspondant. La correspondance se fait par nom entre le matériel distant et les équipements Zabbix. Saisissez l'URL de base de l'API (ex&nbsp;: <code>http://10.230.0.43</code>).</p>
+          <div class="row2"><div class="spf"><div class="spl">URL de l'API</div><input class="spi" id="syncurl" type="text" placeholder="http://10.230.0.43"></div><div class="spf" style="max-width:170px"><div class="spl">Clé API <span class="hi">(optionnel)</span></div><input class="spi" id="synckey" type="password" placeholder=""></div></div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:10px"><button class="mb co" id="syncbtn">🔄 Synchroniser maintenant</button><span id="syncres" style="font-size:12px;color:var(--text3)"></span></div>
+          <div id="syncreport" style="margin-top:12px;font-size:12px;color:var(--text2)"></div>
         </div>
       </div>
     </div>
@@ -1136,6 +1145,7 @@ async function fetchCategories(){
 
 /* ── Sidebar ───────────────────────────────────────────────── */
 const sbCatOpen={};
+const sbGrpOpen={};
 function buildSidebar(){
   const container=document.getElementById('sb-cats');
   container.innerHTML='';
@@ -1187,6 +1197,61 @@ function buildSidebar(){
     sec.querySelectorAll('.sdev').forEach(el=>el.addEventListener('mousedown',startSbDrag));
     container.appendChild(sec);
   }
+  buildSidebarGroups(container);
+}
+
+const GST_CLR={ok:'#1D9E75',placed:'#1D9E75',warn:'#EF9F27',crit:'#E24B4A',disabled:'#6b7280'};
+function buildSidebarGroups(container){
+  if(!groups.length)return;
+  const hd=document.createElement('div');
+  hd.className='sb-head';hd.style.borderTop='1px solid var(--border)';
+  hd.innerHTML=`<span class="sb-title">Points</span><span class="sbcat-ct">${groups.length}</span>`;
+  container.appendChild(hd);
+  for(const g of groups){
+    const isOpen=sbGrpOpen[g.id]===true;
+    const stc=GST_CLR[gSt(g)]||'#6b7280';
+    const devs=g.deviceIds.map(id=>devices.find(d=>d.id===id)).filter(Boolean);
+    const sec=document.createElement('div');
+    sec.className='sbcat';
+    sec.innerHTML=`
+      <div class="sbcat-h">
+        <div class="sbcat-sq" style="background:${stc}"></div>
+        <span class="sbcat-nm" title="${g.name}">${g.name}</span>
+        <span class="sbcat-ct">${g.deviceIds.length}</span>
+        <div class="sbcat-acts">
+          <button class="sbcat-btn" title="Localiser sur la carte" data-loc="${g.id}">◎</button>
+        </div>
+        <span class="sbcat-ar ${isOpen?'on':''}">▶</span>
+      </div>
+      <div class="sbcat-body ${isOpen?'on':''}">
+        ${devs.length===0
+          ?'<div class="sbcat-empty">Aucun matériel relié</div>'
+          :devs.map(d=>{const cat=categories.find(c=>c.id===d.type);return `
+            <div class="sdev" data-gdev="${d.id}" style="cursor:default">
+              <div class="sdev-ic" style="background:${cat?.color||'#666'}">${cat?.icon||(d.name||'?').charAt(0)}</div>
+              <div class="sdev-info">
+                <div class="sdev-nm" title="${d.name}">${d.name}</div>
+                <div class="sdev-ip">${d.ip||'—'}</div>
+              </div>
+              <div class="sdev-st" style="background:${SDOT[d.status]||SDOT.ok}"></div>
+            </div>`;}).join('')}
+      </div>`;
+    sec.querySelector('.sbcat-h').addEventListener('click',e=>{
+      if(e.target.closest('.sbcat-acts'))return;
+      const body=sec.querySelector('.sbcat-body'),ar=sec.querySelector('.sbcat-ar');
+      const open=!body.classList.contains('on');
+      sbGrpOpen[g.id]=open;body.classList.toggle('on',open);ar.classList.toggle('on',open);
+    });
+    const locBtn=sec.querySelector('[data-loc]');
+    if(locBtn)locBtn.addEventListener('click',e=>{e.stopPropagation();focusGroup(g);});
+    container.appendChild(sec);
+  }
+}
+
+function focusGroup(g){
+  if(gpsMode&&lmap){const gg=(typeof groupToGps==='function')?groupToGps(g):null;if(gg)lmap.panTo([gg.lat,gg.lng]);}
+  else{offX=canvas.width/2-g.x*canvas.width*scale;offY=canvas.height/2-g.y*canvas.height*scale;}
+  setTimeout(()=>showGP(g,canvas.width/2,canvas.height/2),gpsMode?280:0);
 }
 
 function toggleSidebar(){
@@ -1384,6 +1449,12 @@ async function openSettings(){
   document.getElementById('gps-opa-val').textContent=Math.round(overlayOpacity*100)+'%';
   document.getElementById('dgps-loc').checked=showUserGps;
   syncGpsFields();updateGpsBoundsInfo();
+  // Synchronisation Device Assigner
+  const sc=cfg.sync||{};
+  document.getElementById('syncurl').value=sc.url||'';
+  document.getElementById('synckey').value=sc.apiKey||'';
+  document.getElementById('syncres').textContent='';
+  document.getElementById('syncreport').innerHTML='';
   buildClrEd();
   triggersData=await fetch(`${API}/triggers`).then(r=>r.json());
   // Ensure all categories have an entry
@@ -1406,12 +1477,13 @@ document.getElementById('icon-scale-num').addEventListener('change',e=>{
   e.target.value=(v*100).toFixed(1);
   document.getElementById('icon-scale').value=v;iconScale=v;
 });
-document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display,#st-gps').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
+document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display,#st-gps,#st-sync').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
 document.getElementById('ztest').addEventListener('click',async()=>{const cfg={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value,path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value};const res=document.getElementById('ztres');res.style.color='var(--text3)';res.textContent='Connexion…';try{const r=await fetch(`${API}/config/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}).then(r=>r.json());if(r.ok){res.style.color='var(--ok)';res.textContent=`✓ Zabbix API v${r.version}`;}else{res.style.color='var(--crit)';res.textContent=`✗ ${r.error}`;}}catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}});
 document.getElementById('spsv').addEventListener('click',async()=>{
   const z={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value||'80',path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value,refresh:parseInt(document.getElementById('zri').value)||30,timeout:parseInt(document.getElementById('zto').value)||10,autoRefresh:document.getElementById('zar').checked};
   const d={labels:document.getElementById('dlbl').checked,halos:document.getElementById('dhalo').checked,grid:document.getElementById('dgrid').checked};
-  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zabbix:z,display:d})});
+  const sync={url:document.getElementById('syncurl').value.trim(),apiKey:document.getElementById('synckey').value};
+  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zabbix:z,display:d,sync})});
   // Save category colors
   await Promise.all(categories.filter(cat=>TYPES[cat.id]&&TYPES[cat.id].color!==cat.color).map(cat=>{cat.color=TYPES[cat.id].color;return fetch(`${API}/categories/${cat.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cat)});}));
   const fl=Object.values(triggersData).flat();
@@ -1438,6 +1510,27 @@ document.getElementById('spsv').addEventListener('click',async()=>{
   if(gpsMode!==prevGps||gpsMode){applyGpsMode();}else if(gpsMode){updateBgOverlay();}
   disp=d;lgnd();buildSidebar();
   const b=document.getElementById('bsv');b.classList.add('on');setTimeout(()=>b.classList.remove('on'),2500);
+});
+
+document.getElementById('syncbtn').addEventListener('click',async()=>{
+  const url=document.getElementById('syncurl').value.trim();
+  const apiKey=document.getElementById('synckey').value;
+  const res=document.getElementById('syncres'),rep=document.getElementById('syncreport');
+  if(!url){res.style.color='var(--crit)';res.textContent='✗ URL requise';return;}
+  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sync:{url,apiKey}})});
+  res.style.color='var(--text3)';res.textContent='Synchronisation…';rep.innerHTML='';
+  try{
+    const r=await fetch(`${API}/sync`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url,apiKey})}).then(r=>r.json());
+    if(r.error){res.style.color='var(--crit)';res.textContent='✗ '+r.error;return;}
+    res.style.color='var(--ok)';res.textContent=`✓ ${r.pointsTotal} points traités`;
+    let h=`<div style="padding:9px 11px;background:var(--bg3);border-radius:6px;line-height:1.8">`;
+    h+=`Groupes créés : <b>${r.groupsCreated}</b> · mis à jour : <b>${r.groupsUpdated}</b><br>`;
+    h+=`Matériel relié : <b style="color:var(--ok)">${r.devicesMatched}</b> · non trouvé : <b style="color:${r.unmatchedCount?'#EF9F27':'var(--text3)'}">${r.unmatchedCount}</b>`;
+    if(r.unmatched&&r.unmatched.length){h+=`<div style="margin-top:8px;max-height:170px;overflow:auto;font-size:11px;color:var(--text3);border-top:1px solid var(--border);padding-top:6px">`+r.unmatched.map(u=>`• <b style="color:var(--text2)">${u.material||'—'}</b> <span style="opacity:.6">— ${u.point}</span>`).join('<br>')+`</div>`;}
+    h+='</div>';
+    rep.innerHTML=h;
+    await loadData();
+  }catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}
 });
 
 function buildClrEd(){

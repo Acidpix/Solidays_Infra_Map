@@ -146,8 +146,10 @@ router.get('/config', (req, res) => {
   const displayCfg = db.getConfig('display') || {};
   const gpsCfg = db.getConfig('gps') || null;
   const mapviewCfg = db.getConfig('mapview') || null;
+  const syncCfg = db.getConfig('sync') || null;
   const safe = { ...zabbixCfg, pass: zabbixCfg.pass ? '••••••••' : '' };
-  res.json({ zabbix: safe, display: displayCfg, gps: gpsCfg, mapview: mapviewCfg });
+  const safeSync = syncCfg ? { ...syncCfg, apiKey: syncCfg.apiKey ? '••••••••' : '' } : null;
+  res.json({ zabbix: safe, display: displayCfg, gps: gpsCfg, mapview: mapviewCfg, sync: safeSync });
 });
 
 router.post('/config', (req, res) => {
@@ -161,6 +163,12 @@ router.post('/config', (req, res) => {
   if (display) db.setConfig('display', display);
   if ('gps' in req.body) db.setConfig('gps', req.body.gps);
   if ('mapview' in req.body) db.setConfig('mapview', req.body.mapview);
+  if ('sync' in req.body && req.body.sync) {
+    const s = { ...req.body.sync };
+    const existing = db.getConfig('sync') || {};
+    if (s.apiKey === '••••••••') s.apiKey = existing.apiKey || '';
+    db.setConfig('sync', s);
+  }
   res.json({ ok: true });
 });
 
@@ -171,6 +179,99 @@ router.post('/config/test', async (req, res) => {
     res.json({ ok: true, version });
   } catch (e) {
     res.status(400).json({ ok: false, error: e.message });
+  }
+});
+
+/* ── SYNC (Device Assigner → groupes) ─────────────────────── */
+// Normalise un nom pour la correspondance approximative (maj, sans séparateurs)
+function normName(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+function syncPoints(points) {
+  // Index des devices Zabbix par nom normalisé
+  const byNorm = new Map();
+  for (const d of devicesCache) {
+    const n = normName(d.name);
+    if (n && !byNorm.has(n)) byNorm.set(n, d);
+  }
+  function matchDevice(rawName) {
+    const n = normName(rawName);
+    if (!n) return null;
+    if (byNorm.has(n)) return byNorm.get(n);            // correspondance exacte (normalisée)
+    let best = null, bestDiff = Infinity;               // correspondance partielle : meilleur candidat
+    for (const [dn, d] of byNorm) {
+      const shorter = dn.length < n.length ? dn : n;
+      if (shorter.length >= 4 && (dn.includes(n) || n.includes(dn))) {
+        const diff = Math.abs(dn.length - n.length);
+        if (diff < bestDiff) { bestDiff = diff; best = d; }
+      }
+    }
+    return best;
+  }
+
+  const existing = db.getAllGroups();
+  const bySource = new Map();
+  const byName = new Map();
+  for (const g of existing) {
+    if (g.source_id) bySource.set(g.source_id, g);
+    byName.set(g.name.trim().toLowerCase(), g);
+  }
+
+  let created = 0, updated = 0, matched = 0, newIdx = 0;
+  const unmatched = [];
+  const place = () => {                                 // grille pour les nouveaux groupes
+    const cols = 8, col = newIdx % cols, row = Math.floor(newIdx / cols);
+    newIdx++;
+    return { x: Math.min(0.95, 0.08 + col * 0.11), y: Math.min(0.95, 0.10 + row * 0.11) };
+  };
+
+  for (const p of points) {
+    if (!p || !p.name) continue;
+    const matIds = [];
+    for (const m of (p.material || [])) {
+      const dev = matchDevice(m.name) || matchDevice(m.serialNumber);
+      if (dev) { if (!matIds.includes(dev.id)) matIds.push(dev.id); matched++; }
+      else unmatched.push({ point: p.name, material: m.name || m.serialNumber || m.unitId || '?' });
+    }
+    const g = bySource.get(p.id) || byName.get(p.name.trim().toLowerCase());
+    if (g) {
+      db.updateGroup(g.id, p.name, g.x, g.y, matIds, g.disabled || 0, g.placed || 0);
+      updated++;
+    } else {
+      const pos = place();
+      db.createGroup(uuid(), p.name, pos.x, pos.y, matIds, 0, p.id);
+      created++;
+    }
+  }
+
+  return {
+    ok: true, pointsTotal: points.length,
+    groupsCreated: created, groupsUpdated: updated,
+    devicesMatched: matched, unmatchedCount: unmatched.length,
+    unmatched: unmatched.slice(0, 100),
+  };
+}
+
+router.post('/sync', async (req, res) => {
+  try {
+    const cfg = db.getConfig('sync') || {};
+    const url = (req.body && req.body.url) || cfg.url;
+    let apiKey = (req.body && req.body.apiKey) || cfg.apiKey;
+    if (apiKey === '••••••••') apiKey = cfg.apiKey;
+    if (!url) return res.status(400).json({ error: 'URL de synchronisation non configurée' });
+
+    const base = url.replace(/\/+$/, '').replace(/\/api\/v1\/points$/, '');
+    const endpoint = base + '/api/v1/points/';
+    const headers = {};
+    if (apiKey) headers['X-Api-Key'] = apiKey;
+
+    const r = await fetch(endpoint, { headers });
+    if (!r.ok) return res.status(502).json({ error: `API distante: HTTP ${r.status}` });
+    const points = await r.json();
+    if (!Array.isArray(points)) return res.status(502).json({ error: "Réponse inattendue de l'API distante" });
+
+    res.json(syncPoints(points));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
   }
 });
 

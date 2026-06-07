@@ -67,7 +67,19 @@ POST /api/config               Sauvegarde config
 GET  /api/alerts               Historique alertes (filtres: severity, active, depuis)
 GET  /api/map/background       Image de fond (base64)
 POST /api/map/background       Upload image de fond
+POST /api/sync                 Synchro Device Assigner : 1 groupe par point + matériel relié
 ```
+
+### Synchronisation Device Assigner
+
+`POST /api/sync` interroge une API externe (Device Assigner, `GET <url>/api/v1/points/`) et,
+pour chaque point distant, crée ou met à jour un **groupe** (1 groupe = 1 point). Le matériel du
+point est relié aux équipements Zabbix par **correspondance de nom** (`normName()` : majuscules,
+sans séparateurs ; exact puis partiel sur le meilleur candidat). L'`id` du point distant est
+stocké dans `groups.source_id` pour rendre la synchro idempotente. Config dans `config.sync`
+(`{url, apiKey}`), réglée dans l'onglet **Synchronisation** des Paramètres. Les groupes
+synchronisés s'affichent sur la carte (grille auto) **et** dans la sidebar (section « Points »,
+repliable via triangle). Retour : `{groupsCreated, groupsUpdated, devicesMatched, unmatched[]}`.
 
 ## Base de données
 
