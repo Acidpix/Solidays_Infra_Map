@@ -47,17 +47,23 @@ async function login(cfg) {
 
 // Assign category solely by zabbix_groups configuration.
 // Accepte soit un host Zabbix (host.hostgroups/host.groups), soit { hostGroups: [noms] }.
+// Correspondance EXACTE prioritaire (insensible à la casse), repli sur "contient" sinon —
+// pour éviter qu'un groupe "Wave-AP" soit capté par la catégorie "Wave".
 function detectCategory(host, categories) {
-  const hostGroups = host.hostGroups
+  const hostGroups = (host.hostGroups
     ? host.hostGroups
-    : (host.hostgroups || host.groups || []).map(g => g.name);
+    : (host.hostgroups || host.groups || []).map(g => g.name)
+  ).map(s => String(s).toLowerCase());
+
+  // 1) Correspondance exacte
   for (const cat of categories) {
-    if (cat.zabbix_groups && cat.zabbix_groups.length > 0) {
-      const match = cat.zabbix_groups.some(zg =>
-        hostGroups.some(hg => hg.toLowerCase().includes(zg.toLowerCase()))
-      );
-      if (match) return cat.id;
-    }
+    const groups = (cat.zabbix_groups || []).map(z => z.toLowerCase());
+    if (groups.length && groups.some(zg => hostGroups.includes(zg))) return cat.id;
+  }
+  // 2) Repli : correspondance partielle (le host group contient le groupe configuré)
+  for (const cat of categories) {
+    const groups = (cat.zabbix_groups || []).map(z => z.toLowerCase());
+    if (groups.length && groups.some(zg => hostGroups.some(hg => hg.includes(zg)))) return cat.id;
   }
   return null; // non classé
 }
