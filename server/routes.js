@@ -35,6 +35,14 @@ async function fetchDevices() {
     devicesCache = devices;
     lastFetch = Date.now();
     fetchError = null;
+    // Récapitulatif de catégorisation (diagnostic)
+    const counts = {};
+    let noGroups = 0;
+    for (const d of devices) {
+      counts[d.type] = (counts[d.type] || 0) + 1;
+      if (!d.hostGroups || !d.hostGroups.length) noGroups++;
+    }
+    console.log(`[Zabbix] ${devices.length} hôtes · catégories:`, counts, `· sans host group: ${noGroups}`);
   } catch (e) {
     fetchError = e.message;
     console.error('[Zabbix] fetch error:', e.message);
@@ -299,6 +307,17 @@ router.get('/zabbix/groups', async (req, res) => {
   } catch (e) {
     res.json([]);
   }
+});
+
+/* ── DEBUG : catégorisation par host group ────────────────── */
+router.get('/debug/categorize', (req, res) => {
+  const cats = db.getAllCategories().map(c => ({ id: c.id, name: c.name, zabbix_groups: c.zabbix_groups }));
+  const devices = devicesCache.map(d => {
+    const matched = cats.filter(c => (c.zabbix_groups || []).some(zg =>
+      (d.hostGroups || []).some(hg => hg.toLowerCase().includes(zg.toLowerCase()))));
+    return { name: d.name, type: d.type, hostGroups: d.hostGroups || null, matched: matched.map(c => c.id) };
+  });
+  res.json({ categories: cats, devices });
 });
 
 /* ── TRIGGERS ─────────────────────────────────────────────── */
