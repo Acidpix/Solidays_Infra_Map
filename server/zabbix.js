@@ -45,9 +45,12 @@ async function login(cfg) {
   return _token;
 }
 
-// Assign category solely by zabbix_groups configuration
+// Assign category solely by zabbix_groups configuration.
+// Accepte soit un host Zabbix (host.hostgroups/host.groups), soit { hostGroups: [noms] }.
 function detectCategory(host, categories) {
-  const hostGroups = (host.hostgroups || host.groups || []).map(g => g.name);
+  const hostGroups = host.hostGroups
+    ? host.hostGroups
+    : (host.hostgroups || host.groups || []).map(g => g.name);
   for (const cat of categories) {
     if (cat.zabbix_groups && cat.zabbix_groups.length > 0) {
       const match = cat.zabbix_groups.some(zg =>
@@ -91,11 +94,22 @@ async function getHosts(cfg, categories = []) {
   const url = buildUrl(cfg);
   const auth = await login(cfg);
 
-  const hosts = await zabbixCall(url, 'host.get', {
-    output: ['hostid', 'name', 'status'],
-    selectHostGroups: ['name'],
-    filter: { status: 0 },
-  }, auth);
+  let hosts;
+  try {
+    // Zabbix 6.2+ : selectHostGroups → host.hostgroups
+    hosts = await zabbixCall(url, 'host.get', {
+      output: ['hostid', 'name', 'status'],
+      selectHostGroups: ['name'],
+      filter: { status: 0 },
+    }, auth);
+  } catch (e) {
+    // Versions plus anciennes (≤ 6.0) : selectGroups → host.groups
+    hosts = await zabbixCall(url, 'host.get', {
+      output: ['hostid', 'name', 'status'],
+      selectGroups: ['name'],
+      filter: { status: 0 },
+    }, auth);
+  }
 
   // Debug: log groups of first host to verify field name
   if (hosts.length > 0) {
@@ -130,7 +144,8 @@ async function getHosts(cfg, categories = []) {
   for (const iface of interfaces) ipByHost[iface.hostid] = iface.ip;
 
   return hosts.map(host => {
-    const category = detectCategory(host, categories);
+    const hostGroups = (host.hostgroups || host.groups || []).map(g => g.name);
+    const category = detectCategory({ hostGroups }, categories);
     const hostItems = itemsByHost[host.hostid] || [];
     const metrics = {};
 
@@ -151,6 +166,7 @@ async function getHosts(cfg, categories = []) {
       zabbix_id: host.hostid,
       name: host.name,
       type: category || 'uncat',
+      hostGroups, // mémorisé pour permettre une re-catégorisation sans re-polling Zabbix
       ip: ipByHost[host.hostid] || '',
       ...metrics,
       status: 'ok',
@@ -178,4 +194,4 @@ async function testConnection(cfg) {
   return version;
 }
 
-module.exports = { getHosts, getGroups, testConnection, login };
+module.exports = { getHosts, getGroups, testConnection, login, detectCategory };

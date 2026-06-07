@@ -1494,7 +1494,7 @@ document.getElementById('cat-mo-save').addEventListener('click',async()=>{
     triggersData[res.id]=[];
   }
   lgnd();buildSidebar();
-  apiRef(); // recalcule la catégorie des équipements côté backend avec la config à jour
+  loadData(); // le backend a re-trié les équipements (recategorize) → on recharge le cache à jour
   const sv=document.getElementById('cat-mo-saved');
   sv.style.opacity='1';setTimeout(()=>sv.style.opacity='0',2000);
 });
@@ -1511,7 +1511,7 @@ async function deleteCat(id){
   categories=categories.filter(c=>c.id!==id);
   delete TYPES[id];
   lgnd();buildSidebar();
-  apiRef(); // ré-affecte les équipements de la catégorie supprimée
+  loadData(); // ré-affecte les équipements de la catégorie supprimée (recategorize backend)
 }
 
 document.getElementById('btn-add-cat').addEventListener('click',()=>openCatModal(null));

@@ -56,6 +56,17 @@ function applyPositions(devices) {
   }
 }
 
+// Recalcule la catégorie (type) des équipements en cache à partir de leurs host groups
+// mémorisés et de la config catégories à jour — sans re-interroger Zabbix.
+function recategorize() {
+  const cats = db.getAllCategories();
+  for (const d of devicesCache) {
+    if (!d.hostGroups) continue; // mock / pas de host groups → on conserve le type
+    d.type = zabbix.detectCategory({ hostGroups: d.hostGroups }, cats) || 'uncat';
+  }
+  evaluateAll(devicesCache);
+}
+
 function scheduleRefresh() {
   if (refreshTimer) clearInterval(refreshTimer);
   const cfg = db.getConfig('zabbix');
@@ -102,16 +113,19 @@ router.post('/categories', (req, res) => {
   const cat = req.body;
   if (!cat.id) cat.id = uuid();
   db.upsertCategory(cat);
+  recategorize();
   res.json(cat);
 });
 
 router.put('/categories/:id', (req, res) => {
   db.upsertCategory({ ...req.body, id: req.params.id });
+  recategorize();
   res.json({ ok: true });
 });
 
 router.delete('/categories/:id', (req, res) => {
   db.deleteCategory(req.params.id);
+  recategorize();
   res.json({ ok: true });
 });
 
