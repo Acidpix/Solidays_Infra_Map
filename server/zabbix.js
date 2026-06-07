@@ -70,6 +70,11 @@ const ITEM_KEY_MAP = {
   'tx.signal':        { metric: 'signal' },
   'wireless.clients': { metric: 'clients', transform: v => parseInt(v) },
   'association.count':{ metric: 'clients', transform: v => parseInt(v) },
+  'clients':          { metric: 'clients', transform: v => parseInt(v) },
+  'link.signal':      { metric: 'signal' },
+  'connection.failure':{ metric: 'connFailure', transform: v => parseInt(v) },
+  'total.power':      { metric: 'power',   transform: v => parseFloat(v) },
+  'board.':           { metric: 'temp',    transform: v => parseFloat(v) }, // clé "Board.[Board Temp]" → "board." après suppression des [..]
   'ifAdminStatus':    { metric: 'portsUp' },
   'net.if.discovery': { metric: 'ports' },
   'fps':              { metric: 'fps',     transform: v => parseFloat(v) },

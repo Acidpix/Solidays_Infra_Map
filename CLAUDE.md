@@ -95,6 +95,17 @@ stocké dans `groups.source_id` pour rendre la synchro idempotente. Config dans 
 synchronisés s'affichent sur la carte (grille auto) **et** dans la sidebar (section « Points »,
 repliable via triangle). Retour : `{groupsCreated, groupsUpdated, devicesMatched, unmatched[]}`.
 
+### Métriques équipements (Zabbix)
+
+`server/zabbix.js` → `ITEM_KEY_MAP` mappe les clés d'items Zabbix vers des champs du device.
+La clé est normalisée (`toLowerCase()` + suppression des `[...]`) avant lookup.
+Champs disponibles (= métriques utilisables dans les triggers, voir `TRIG_METRICS` côté front) :
+`ping`, `latency`, `signal` (clés `rssi`/`signal`/`tx.signal`/`link.signal`), `clients`
+(`wireless.clients`/`association.count`/`clients`), `connFailure` (`connection.failure`),
+`power` (`total.power`), `temp` (`Board.[Board Temp]` → `board.`), `fps`, `portsUp`, `ports`,
+`traffic_in/out`, `uptime`. Ces champs s'affichent dans la popup équipement (`showDP`) quand présents.
+Les triggers (onglet Triggers des Paramètres) permettent de choisir métrique + opérateur + seuil + sévérité.
+
 ## Base de données
 
 Tables SQLite dans `/opt/netmap/db/netmap.db` :

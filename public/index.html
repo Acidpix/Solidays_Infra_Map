@@ -30,6 +30,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe 
 /* Sidebar */
 #sidebar{width:240px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:width .2s,border-color .2s}
 #sidebar.closed{width:0;border-color:transparent}
+#sb-resizer{width:5px;flex-shrink:0;cursor:col-resize;background:transparent;position:relative;z-index:10;transition:background .15s}
+#sb-resizer::after{content:'';position:absolute;inset:0 -3px;cursor:col-resize}
+#sb-resizer:hover,#sb-resizer.dragging{background:var(--accent,#4f8ef7)}
+#sidebar.closed+#sb-resizer{display:none}
+.sb-scroll::-webkit-scrollbar{width:5px}
+.sb-scroll::-webkit-scrollbar-track{background:transparent}
+.sb-scroll::-webkit-scrollbar-thumb{background:var(--border2,#444);border-radius:3px}
+.sb-scroll::-webkit-scrollbar-thumb:hover{background:var(--text3)}
 .sb-head{padding:9px 10px 8px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);flex-shrink:0}
 .sb-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--text3)}
 .sb-add{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-size:15px;line-height:1;transition:all .12s;flex-shrink:0}
@@ -215,15 +223,17 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 .tisv{font-size:9px;font-weight:700;text-transform:uppercase;padding:2px 5px;border-radius:3px;flex-shrink:0;cursor:pointer}
 .tisv.wa{background:rgba(239,159,39,0.15);color:var(--warn)}
 .tisv.cr{background:rgba(226,75,74,0.15);color:var(--crit)}
-.tinm{font-size:12px;flex:1}
+.tinm{font-size:12px;flex:1;min-width:30px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tith{display:flex;align-items:center;gap:4px;flex-shrink:0}
-.tith input{width:60px;background:var(--bg2);border:1px solid var(--border2);border-radius:4px;padding:3px 6px;color:var(--text);font-size:11px;outline:none;text-align:right}
+.tith input{width:56px;background:var(--bg2);border:1px solid var(--border2);border-radius:4px;padding:3px 6px;color:var(--text);font-size:11px;outline:none;text-align:right}
 .tith input:focus{border-color:#378ADD}
-.tith .un{font-size:10px;color:var(--text3);white-space:nowrap}
+.tith select{background:var(--bg2);border:1px solid var(--border2);border-radius:4px;padding:3px 4px;color:var(--text);font-size:11px;outline:none;max-width:118px}
+.tith select:focus{border-color:#378ADD}
+.tith .un{font-size:10px;color:var(--text3);white-space:nowrap;min-width:18px}
 .tidl{background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0 2px;transition:color .1s;flex-shrink:0}
 .tidl:hover{color:var(--crit)}
-.tcadd{display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
-.tcadd input{flex:1;background:var(--bg2);border:1px solid var(--border2);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none}
+.tcadd{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+.tcadd input{flex:1;min-width:90px;background:var(--bg2);border:1px solid var(--border2);border-radius:4px;padding:5px 8px;color:var(--text);font-size:12px;outline:none}
 .tcadd input:focus{border-color:#378ADD}
 .tcadd select{background:var(--bg2);border:1px solid var(--border2);border-radius:4px;padding:5px 6px;color:var(--text);font-size:11px;outline:none}
 .tcaddbtn{padding:5px 10px;background:#378ADD;border:none;border-radius:4px;color:#fff;font-size:11px;cursor:pointer}
@@ -286,6 +296,7 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
   /* Sidebar en tiroir au-dessus de la carte */
   #sidebar{position:absolute;top:0;bottom:0;left:0;z-index:400;width:78vw;max-width:300px;box-shadow:4px 0 24px rgba(0,0,0,0.5)}
   #sidebar.closed{width:0;box-shadow:none}
+  #sb-resizer{display:none}
   #main{position:relative}
   /* Barres GPS en bas, pleine largeur, défilables */
   #gps-calib-bar,#gps-place-bar{top:auto;bottom:0;left:0;right:0;transform:none;width:100%;max-width:100%;border-radius:0;padding:8px 10px;gap:8px;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start}
@@ -346,6 +357,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
       </div>
       <div class="sb-scroll" id="sb-cats"></div>
     </div>
+    <div id="sb-resizer"></div>
     <!-- Canvas -->
     <div id="canvas-wrap"><div id="lmap"></div><canvas id="map-canvas"></canvas></div>
   </div>
@@ -1077,7 +1089,8 @@ function gBB(g){
 }
 // Déplacement d'un objet en cours de drag (équipement = position absolue ; point = translation de tous ses membres placés).
 function dragApply(o,rx,ry){
-  rx=Math.max(.02,Math.min(.98,rx));ry=Math.max(.02,Math.min(.98,ry));
+  // Large marge autour du plan (0..1) pour pouvoir poser au-delà de ses bords, n'importe où sur la carte.
+  rx=Math.max(-10,Math.min(11,rx));ry=Math.max(-10,Math.min(11,ry));
   if(o.type==='dev'){o.ref.x=rx;o.ref.y=ry;o.ref.onMap=true;}
   else if(o.type==='group'){
     if(o.last){const dx=rx-o.last[0],dy=ry-o.last[1];o.ref.x+=dx;o.ref.y+=dy;
@@ -1155,7 +1168,7 @@ function hDIG(sx,sy){const h=DSZ()/2+4;for(const g of groups){const bb=gBB(g);if
 /* ── Device popup ──────────────────────────────────────────── */
 const dp=document.getElementById('dpopup');
 function DR(l,v,c=''){return`<div class="dpr"><span class="dprl">${l}</span><span class="dprv ${c}">${v}</span></div>`;}
-function showDP(d,sx,sy){clearTimeout(dpHideTimer);const t=TYPES[d.type]||{color:'#666',label:d.type};let h=`<div class="dph"><div class="dpsq" style="background:${t.color}"></div><div><div class="dpnm">${d.name}</div><div class="dpty">${t.label}</div></div></div>`;h+=DR('IP',d.ip||'—');h+=DR('Ping',d.ping?'Actif':'Inactif',d.ping?'ok':'c');if(d.latency!=null)h+=DR('Latence',d.latency+' ms',d.latency>15?'w':'');if(d.signal!=null)h+=DR('Signal',d.signal+' dBm',d.signal<-75?'w':'');if(d.channel!=null)h+=DR('Canal radio',d.channel);if(d.clients!=null)h+=DR('Clients',d.clients);if(d.ports!=null)h+=DR('Ports UP/Total',`${d.portsUp}/${d.ports}`,d.portsUp<d.ports*.5?'w':'');if(d.resolution)h+=DR('Résolution',d.resolution);if(d.fps!=null)h+=DR('FPS',d.fps+' fps',d.fps<15?'c':'');if(d.uptime)h+=DR('Uptime',d.uptime);if(d.trigger)h+=`<div class="dptg"><div class="tl">⚡ Trigger</div><div class="tm">${d.trigger}</div></div>`;const _dgps=deviceToGps(d);if(_dgps)h+=`<div class="dpr"><span class="dprl">GPS</span><span class="dprv"><a href="${gmapsUrl(_dgps.lat,_dgps.lng)}" target="_blank" style="color:#378ADD;text-decoration:none;font-size:11px">${_dgps.lat.toFixed(5)}, ${_dgps.lng.toFixed(5)} ↗</a></span></div>`;dp.innerHTML=h;let px=sx+16,py=sy-10;if(px+270>wrap.clientWidth)px=sx-270-8;if(py+310>wrap.clientHeight)py=sy-290;if(py<0)py=4;dp.style.left=px+'px';dp.style.top=py+'px';dp.classList.add('v');}
+function showDP(d,sx,sy){clearTimeout(dpHideTimer);const t=TYPES[d.type]||{color:'#666',label:d.type};let h=`<div class="dph"><div class="dpsq" style="background:${t.color}"></div><div><div class="dpnm">${d.name}</div><div class="dpty">${t.label}</div></div></div>`;h+=DR('IP',d.ip||'—');h+=DR('Ping',d.ping?'Actif':'Inactif',d.ping?'ok':'c');if(d.latency!=null)h+=DR('Latence',d.latency+' ms',d.latency>15?'w':'');if(d.signal!=null)h+=DR('Signal',d.signal+' dBm',d.signal<-75?'w':'');if(d.channel!=null)h+=DR('Canal radio',d.channel);if(d.clients!=null)h+=DR('Clients',d.clients);if(d.temp!=null)h+=DR('Température',d.temp+' °C',d.temp>60?'c':d.temp>45?'w':'');if(d.power!=null)h+=DR('Puissance',d.power+' W');if(d.connFailure!=null)h+=DR('Échecs connexion',d.connFailure,d.connFailure>0?'w':'');if(d.ports!=null)h+=DR('Ports UP/Total',`${d.portsUp}/${d.ports}`,d.portsUp<d.ports*.5?'w':'');if(d.resolution)h+=DR('Résolution',d.resolution);if(d.fps!=null)h+=DR('FPS',d.fps+' fps',d.fps<15?'c':'');if(d.uptime)h+=DR('Uptime',d.uptime);if(d.trigger)h+=`<div class="dptg"><div class="tl">⚡ Trigger</div><div class="tm">${d.trigger}</div></div>`;const _dgps=deviceToGps(d);if(_dgps)h+=`<div class="dpr"><span class="dprl">GPS</span><span class="dprv"><a href="${gmapsUrl(_dgps.lat,_dgps.lng)}" target="_blank" style="color:#378ADD;text-decoration:none;font-size:11px">${_dgps.lat.toFixed(5)}, ${_dgps.lng.toFixed(5)} ↗</a></span></div>`;dp.innerHTML=h;let px=sx+16,py=sy-10;if(px+270>wrap.clientWidth)px=sx-270-8;if(py+310>wrap.clientHeight)py=sy-290;if(py<0)py=4;dp.style.left=px+'px';dp.style.top=py+'px';dp.classList.add('v');}
 let dpHideTimer=null;
 // Masquage différé : laisse le temps d'amener la souris dans la popup pour cliquer le lien GPS.
 function hideDP(){clearTimeout(dpHideTimer);dpHideTimer=setTimeout(()=>dp.classList.remove('v'),260);}
@@ -1451,6 +1464,7 @@ document.getElementById('cat-mo-save').addEventListener('click',async()=>{
     triggersData[res.id]=[];
   }
   lgnd();buildSidebar();
+  apiRef(); // recalcule la catégorie des équipements côté backend avec la config à jour
   const sv=document.getElementById('cat-mo-saved');
   sv.style.opacity='1';setTimeout(()=>sv.style.opacity='0',2000);
 });
@@ -1467,6 +1481,7 @@ async function deleteCat(id){
   categories=categories.filter(c=>c.id!==id);
   delete TYPES[id];
   lgnd();buildSidebar();
+  apiRef(); // ré-affecte les équipements de la catégorie supprimée
 }
 
 document.getElementById('btn-add-cat').addEventListener('click',()=>openCatModal(null));
@@ -1606,6 +1621,25 @@ function buildClrEd(){
   });
 }
 
+// Métriques disponibles pour les triggers (doit correspondre aux champs remontés par le backend).
+const TRIG_METRICS=[
+  {k:'ping',label:'Ping (0/1)',unit:''},
+  {k:'latency',label:'Latence',unit:'ms'},
+  {k:'signal',label:'Signal',unit:'dBm'},
+  {k:'clients',label:'Clients',unit:''},
+  {k:'connFailure',label:'Échecs connexion',unit:''},
+  {k:'power',label:'Puissance',unit:'W'},
+  {k:'temp',label:'Température',unit:'°C'},
+  {k:'fps',label:'FPS',unit:'fps'},
+  {k:'portsUp',label:'Ports UP',unit:''},
+  {k:'ports',label:'Ports total',unit:''},
+  {k:'traffic_in',label:'Trafic entrant',unit:''},
+  {k:'traffic_out',label:'Trafic sortant',unit:''},
+];
+const TRIG_OPS=['>','<','>=','<=','==','!='];
+function metricOptions(sel){const has=TRIG_METRICS.some(m=>m.k===sel);return TRIG_METRICS.map(m=>`<option value="${m.k}"${m.k===sel?' selected':''}>${m.label}</option>`).join('')+(has?'':`<option value="${sel}" selected>${sel}</option>`);}
+function opOptions(sel){return TRIG_OPS.map(o=>`<option value="${o}"${o===sel?' selected':''}>${o}</option>`).join('');}
+
 function buildTgUI(){
   const ct=document.getElementById('tgc');ct.innerHTML='';
   for(const cat of categories){
@@ -1616,8 +1650,8 @@ function buildTgUI(){
     head.innerHTML=`<div class="tcsq" style="background:${cat.color}"></div><span class="tcnm">${cat.name}</span><span class="tcct">${trigs.filter(t=>t.enabled).length}/${trigs.length} actifs</span><span class="tcar">▶</span>`;
     const body=document.createElement('div');body.className='tcb';body.style.display='none';
     function rh(){head.querySelector('.tcct').textContent=`${(triggersData[k]||[]).filter(t=>t.enabled).length}/${(triggersData[k]||[]).length} actifs`;}
-    function rtgs(){body.innerHTML='';(triggersData[k]||[]).forEach((tg,i)=>{const row=document.createElement('div');row.className='ti';row.innerHTML=`<input class="tien" type="checkbox" ${tg.enabled?'checked':''}><span class="tisv ${tg.severity==='crit'?'cr':'wa'}">${tg.severity==='crit'?'Crit':'Warn'}</span><span class="tinm">${tg.name}</span><div class="tith"><span style="font-size:11px;color:var(--text3)">${tg.op}</span><input type="number" value="${tg.threshold}" step="any"><span class="un">${tg.unit}</span></div><button class="tidl">✕</button>`;row.querySelector('.tien').addEventListener('change',e=>{tg.enabled=e.target.checked;rh();});row.querySelector('.tith input').addEventListener('change',e=>{tg.threshold=parseFloat(e.target.value)||0;});row.querySelector('.tisv').addEventListener('click',()=>{tg.severity=tg.severity==='crit'?'warn':'crit';rtgs();rh();});row.querySelector('.tidl').addEventListener('click',async()=>{if(tg.id&&!tg.id.startsWith('u'))await fetch(`${API}/triggers/${tg.id}`,{method:'DELETE'});if(triggersData[k])triggersData[k].splice(i,1);rtgs();rh();});body.appendChild(row);});
-      const ar=document.createElement('div');ar.className='tcadd';ar.innerHTML=`<input type="text" placeholder="Nom du trigger" id="ta-${k}"><select id="ts-${k}"><option value="warn">⚠ Warn</option><option value="crit">✗ Crit</option></select><button class="tcaddbtn">+ Ajouter</button>`;ar.querySelector('.tcaddbtn').addEventListener('click',()=>{const nm=document.getElementById(`ta-${k}`).value.trim();if(!nm)return;const sv=document.getElementById(`ts-${k}`).value;if(!triggersData[k])triggersData[k]=[];triggersData[k].push({id:'u'+Date.now(),category:k,name:nm,metric:'custom',op:'>',threshold:0,unit:'',severity:sv,enabled:true});rtgs();rh();});body.appendChild(ar);}
+    function rtgs(){body.innerHTML='';(triggersData[k]||[]).forEach((tg,i)=>{const row=document.createElement('div');row.className='ti';row.innerHTML=`<input class="tien" type="checkbox" ${tg.enabled?'checked':''}><span class="tisv ${tg.severity==='crit'?'cr':'wa'}">${tg.severity==='crit'?'Crit':'Warn'}</span><span class="tinm" title="${tg.name}">${tg.name}</span><div class="tith"><select class="timet">${metricOptions(tg.metric)}</select><select class="tiop">${opOptions(tg.op)}</select><input type="number" value="${tg.threshold}" step="any"><span class="un">${tg.unit||''}</span></div><button class="tidl">✕</button>`;row.querySelector('.tien').addEventListener('change',e=>{tg.enabled=e.target.checked;rh();});row.querySelector('.tith input').addEventListener('change',e=>{tg.threshold=parseFloat(e.target.value)||0;});row.querySelector('.timet').addEventListener('change',e=>{tg.metric=e.target.value;const mu=TRIG_METRICS.find(m=>m.k===tg.metric);if(mu)tg.unit=mu.unit;rtgs();});row.querySelector('.tiop').addEventListener('change',e=>{tg.op=e.target.value;});row.querySelector('.tisv').addEventListener('click',()=>{tg.severity=tg.severity==='crit'?'warn':'crit';rtgs();rh();});row.querySelector('.tidl').addEventListener('click',async()=>{if(tg.id&&!tg.id.startsWith('u'))await fetch(`${API}/triggers/${tg.id}`,{method:'DELETE'});if(triggersData[k])triggersData[k].splice(i,1);rtgs();rh();});body.appendChild(row);});
+      const ar=document.createElement('div');ar.className='tcadd';ar.innerHTML=`<input type="text" placeholder="Nom (optionnel)" id="ta-${k}"><select id="tm-${k}">${metricOptions('latency')}</select><select id="to-${k}">${opOptions('>')}</select><input type="number" id="tv-${k}" placeholder="seuil" step="any" style="flex:0 0 64px"><select id="ts-${k}"><option value="warn">⚠ Warn</option><option value="crit">✗ Crit</option></select><button class="tcaddbtn">+ Ajouter</button>`;ar.querySelector('.tcaddbtn').addEventListener('click',()=>{const metric=document.getElementById(`tm-${k}`).value;const op=document.getElementById(`to-${k}`).value;const thr=parseFloat(document.getElementById(`tv-${k}`).value)||0;const sv=document.getElementById(`ts-${k}`).value;const mu=TRIG_METRICS.find(m=>m.k===metric);const nm=document.getElementById(`ta-${k}`).value.trim()||(mu?mu.label:metric);if(!triggersData[k])triggersData[k]=[];triggersData[k].push({id:'u'+Date.now(),category:k,name:nm,metric,op,threshold:thr,unit:mu?mu.unit:'',severity:sv,enabled:true});rtgs();rh();});body.appendChild(ar);}
     rtgs();let open=false;head.addEventListener('click',()=>{open=!open;body.style.display=open?'block':'none';head.querySelector('.tcar').classList.toggle('on',open);});
     box.appendChild(head);box.appendChild(body);ct.appendChild(box);
   }
