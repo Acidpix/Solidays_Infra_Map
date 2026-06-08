@@ -325,9 +325,10 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
   #dpopup{min-width:unset;padding:14px 16px 20px}
   #gpopup{width:100vw!important}
   /* Panneau réglages plein écran */
-  .sp{width:100vw;height:100vh;max-height:100vh;border-radius:0}
-  .sptabs{overflow-x:auto;white-space:nowrap}
-  .spb{padding:14px}
+  .sp{width:100vw!important;height:100vh;height:100dvh;max-height:100dvh;max-height:100vh;border-radius:0}
+  .sptabs{overflow-x:auto;white-space:nowrap;flex-shrink:0}
+  .spb{padding:14px;flex:1;min-height:0}
+  .spft{position:sticky;bottom:0;background:var(--bg2);padding-bottom:max(14px,env(safe-area-inset-bottom,14px));border-top:1px solid var(--border)}
   #sb{gap:10px;font-size:10px;overflow-x:auto;white-space:nowrap}
   .leaflet-control-zoom{margin-bottom:80px!important}
 }
@@ -615,6 +616,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
 
 <script>
 const API='/api';
+const isMobile=/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||window.innerWidth<=768;
 const SDOT={ok:'#1D9E75',warn:'#EF9F27',crit:'#E24B4A'};
 let TYPES={};
 let categories=[];
@@ -636,7 +638,7 @@ let newGroupPos=null;
 let catModalId=null;
 
 /* ── GPS / Leaflet state ──────────────────────────────────── */
-let gpsMode=localStorage.getItem('solidayMap.gpsMode')==='1';
+let gpsMode=localStorage.getItem('solidayMap.gpsMode')!=='0';
 let gpsBounds=null; // {nw:{lat,lng},se:{lat,lng}}
 let overlayOpacity=parseFloat(localStorage.getItem('solidayMap.overlayOpacity')||'0.75');
 let showUserGps=localStorage.getItem('solidayMap.gpsLoc')==='1';
@@ -1746,10 +1748,10 @@ document.addEventListener('mouseup',async e=>{if(gpsMode)return;if(!dragging&&!d
 wrap.addEventListener('mouseleave',()=>{if(!dragging&&!dragObj){hideDP();hovered=null;wrap.style.cursor='grab';}});
 wrap.addEventListener('wheel',e=>{if(gpsMode)return;e.preventDefault();const rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top,f=e.deltaY<0?1.12:0.9,ns=Math.max(.2,Math.min(5,scale*f));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;},{passive:false});
 let lT=null,tapStart=null;
-wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;tapStart={x:t.clientX,y:t.clientY,time:Date.now()};const dig=hDIG(sx,sy);if(dig&&!locked)dragObj={type:'dev',ref:dig.device};else{const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};}else{const d=hDev(sx,sy);if(d&&!locked)dragObj={type:'dev',ref:d};else{dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}}}else{tapStart=null;}lT=Array.from(e.touches);},{passive:true});
+wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;tapStart={x:t.clientX,y:t.clientY,time:Date.now()};if(!isMobile){const dig=hDIG(sx,sy);if(dig&&!locked)dragObj={type:'dev',ref:dig.device};else{const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};}else{const d=hDev(sx,sy);if(d&&!locked)dragObj={type:'dev',ref:d};else{dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}}};if(isMobile){dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}else{tapStart=null;}lT=Array.from(e.touches);},{passive:true});
 wrap.addEventListener('touchmove',e=>{if(e.touches.length===2&&lT&&lT.length===2){tapStart=null;const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY),pd=Math.hypot(lT[0].clientX-lT[1].clientX,lT[0].clientY-lT[1].clientY);const cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;const rect=canvas.getBoundingClientRect(),mx=cx-rect.left,my=cy-rect.top,ns=Math.max(.2,Math.min(5,scale*(d/pd)));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;}else if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;if(tapStart&&Math.hypot(t.clientX-tapStart.x,t.clientY-tapStart.y)>12)tapStart=null;if(dragObj){const[rx,ry]=toR(sx,sy);dragApply(dragObj,rx,ry);}else if(dragging){offX=t.clientX-dragStart.x;offY=t.clientY-dragStart.y;}}lT=Array.from(e.touches);},{passive:true});
 wrap.addEventListener('touchend',e=>{if(dragObj){if(dragObj.type==='dev')aSP(dragObj.ref.id,dragObj.ref.x,dragObj.ref.y);if(dragObj.type==='group')dragCommitGroup(dragObj.ref);}const wasDragging=dragging;dragging=false;dragObj=null;lT=null;
-if(!wasDragging&&tapStart&&e.changedTouches.length===1&&(Date.now()-tapStart.time)<400){const t=e.changedTouches[0];if(Math.hypot(t.clientX-tapStart.x,t.clientY-tapStart.y)<15){const rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;const dig=hDIG(sx,sy);if(dig)showDP(dig.device,sx,sy);else{const g=hGrp(sx,sy);if(g)showGP(g,sx,sy);else{const d=hDev(sx,sy);if(d)showDP(d,sx,sy);else{hideDPNow();hideGP();}}}}}
+if(tapStart&&e.changedTouches.length===1&&(Date.now()-tapStart.time)<400){const t=e.changedTouches[0];if(Math.hypot(t.clientX-tapStart.x,t.clientY-tapStart.y)<15){const rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;const dig=hDIG(sx,sy);if(dig)showDP(dig.device,sx,sy);else{const g=hGrp(sx,sy);if(g)showGP(g,sx,sy);else{const d=hDev(sx,sy);if(d)showDP(d,sx,sy);else{hideDPNow();hideGP();}}}}}
 tapStart=null;},{passive:true});
 
 /* ── Toolbar buttons ───────────────────────────────────────── */
