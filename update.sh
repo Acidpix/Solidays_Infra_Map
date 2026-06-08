@@ -6,6 +6,9 @@
 set -e
 
 INSTALL_DIR="/opt/netmap"
+SRC_DIR="$INSTALL_DIR/src"
+REPO_URL="${REPO_URL:-https://github.com/Acidpix/Solidays_Infra_Map.git}"
+BRANCH="${BRANCH:-main}"
 SERVICE_USER="netmap"
 HTTPS_PORT=3443
 SSL_DIR="$INSTALL_DIR/ssl"
@@ -20,8 +23,6 @@ die()     { echo -e "${RED}[ERR]${NC} $1"; exit 1; }
 
 [ "$(id -u)" -eq 0 ] || die "Ce script doit être exécuté en root (sudo bash update.sh)"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 echo -e "${CYAN}"
 echo "  ███████╗ ██████╗ ██╗     ██╗██████╗  █████╗ ██╗   ██╗███████╗    ███╗   ███╗ █████╗ ██████╗ "
 echo "  ██╔════╝██╔═══██╗██║     ██║██╔══██╗██╔══██╗╚██╗ ██╔╝██╔════╝    ████╗ ████║██╔══██╗██╔══██╗"
@@ -34,8 +35,8 @@ echo "  Soliday Map — Mise à jour"
 echo ""
 
 # ── Vérifications ─────────────────────────────────────────
-[ -f "$SCRIPT_DIR/package.json" ] || die "package.json introuvable. Lancez ce script depuis le répertoire netmap/."
-[ -d "$INSTALL_DIR" ]             || die "NetMap n'est pas installé dans $INSTALL_DIR. Lancez install.sh d'abord."
+[ -d "$INSTALL_DIR" ] || die "NetMap n'est pas installé dans $INSTALL_DIR. Lancez install.sh d'abord."
+command -v git &>/dev/null || { info "Installation de git..."; apt-get install -y git 2>/dev/null || die "Impossible d'installer git"; }
 
 # ── 1. Arrêt du service ───────────────────────────────────
 info "Arrêt du service netmap..."
@@ -50,11 +51,24 @@ if [ -f "$DB_FILE" ]; then
   success "Base de données sauvegardée → $BACKUP"
 fi
 
-# ── 3. Copie des fichiers (sans DB) ──────────────────────
-info "Mise à jour des fichiers..."
-cp -r "$SCRIPT_DIR/package.json" "$INSTALL_DIR/"
-cp -r "$SCRIPT_DIR/server/"*     "$INSTALL_DIR/server/"
-cp -r "$SCRIPT_DIR/public/"*     "$INSTALL_DIR/public/"
+# ── 3. Mise à jour du code depuis Git ────────────────────
+git config --global --add safe.directory "$SRC_DIR" 2>/dev/null || true
+if [ -d "$SRC_DIR/.git" ]; then
+  info "git pull ($BRANCH)..."
+  git -C "$SRC_DIR" remote set-url origin "$REPO_URL"
+  git -C "$SRC_DIR" fetch --depth 1 origin "$BRANCH"
+  git -C "$SRC_DIR" reset --hard FETCH_HEAD
+else
+  warn "Source git absente, clonage initial dans $SRC_DIR..."
+  rm -rf "$SRC_DIR"
+  git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$SRC_DIR"
+fi
+[ -f "$SRC_DIR/package.json" ] || die "package.json introuvable dans le dépôt cloné."
+
+info "Déploiement des fichiers (la DB n'est pas touchée)..."
+cp -f  "$SRC_DIR/package.json" "$INSTALL_DIR/"
+cp -rf "$SRC_DIR/server/"*     "$INSTALL_DIR/server/"
+cp -rf "$SRC_DIR/public/"*     "$INSTALL_DIR/public/"
 success "Fichiers mis à jour"
 
 # ── 4. npm install (dépendances éventuellement nouvelles) ─

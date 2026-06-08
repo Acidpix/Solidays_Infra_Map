@@ -6,6 +6,9 @@
 set -e
 
 INSTALL_DIR="/opt/netmap"
+SRC_DIR="$INSTALL_DIR/src"
+REPO_URL="${REPO_URL:-https://github.com/Acidpix/Solidays_Infra_Map.git}"
+BRANCH="${BRANCH:-main}"
 SERVICE_USER="netmap"
 PORT=3000
 HTTPS_PORT=3443
@@ -47,7 +50,7 @@ fi
 
 # ── 2. Dépendances système ───────────────────────────────────
 info "Installation des dépendances système..."
-apt-get install -y python3 make g++ sqlite3 openssl 2>/dev/null || true
+apt-get install -y python3 make g++ sqlite3 openssl git 2>/dev/null || true
 success "Dépendances OK"
 
 # ── 3. Répertoire installation ───────────────────────────────
@@ -58,18 +61,26 @@ mkdir -p "$INSTALL_DIR/server"
 mkdir -p "$INSTALL_DIR/public"
 mkdir -p "$SSL_DIR"
 
-# ── 4. Copie des fichiers ────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-info "Copie des fichiers depuis $SCRIPT_DIR..."
-
-if [ ! -f "$SCRIPT_DIR/package.json" ]; then
-  die "package.json introuvable. Lancez ce script depuis le répertoire netmap/."
+# ── 4. Récupération du code depuis Git ───────────────────────
+git config --global --add safe.directory "$SRC_DIR" 2>/dev/null || true
+info "Récupération du code depuis $REPO_URL (branche $BRANCH)..."
+if [ -d "$SRC_DIR/.git" ]; then
+  git -C "$SRC_DIR" remote set-url origin "$REPO_URL"
+  git -C "$SRC_DIR" fetch --depth 1 origin "$BRANCH"
+  git -C "$SRC_DIR" reset --hard FETCH_HEAD
+else
+  rm -rf "$SRC_DIR"
+  git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$SRC_DIR"
 fi
+success "Code récupéré dans $SRC_DIR"
 
-cp -r "$SCRIPT_DIR/package.json" "$INSTALL_DIR/"
-cp -r "$SCRIPT_DIR/server/"*    "$INSTALL_DIR/server/"
-cp -r "$SCRIPT_DIR/public/"*    "$INSTALL_DIR/public/"
-success "Fichiers copiés"
+[ -f "$SRC_DIR/package.json" ] || die "package.json introuvable dans le dépôt cloné."
+
+info "Déploiement des fichiers..."
+cp -f  "$SRC_DIR/package.json" "$INSTALL_DIR/"
+cp -rf "$SRC_DIR/server/"*     "$INSTALL_DIR/server/"
+cp -rf "$SRC_DIR/public/"*     "$INSTALL_DIR/public/"
+success "Fichiers déployés"
 
 # ── 5. npm install ───────────────────────────────────────────
 info "Installation des dépendances npm (better-sqlite3 compile en natif, ~1 min)..."
@@ -105,7 +116,7 @@ info "Création du service systemd..."
 cat > /etc/systemd/system/netmap.service << EOF
 [Unit]
 Description=NetMap — Network Monitoring Map
-Documentation=https://github.com/netmap
+Documentation=https://github.com/Acidpix/Solidays_Infra_Map
 After=network.target
 Wants=network-online.target
 
