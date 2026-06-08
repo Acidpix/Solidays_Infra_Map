@@ -285,27 +285,45 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 #btn-place{display:none}
 #btn-place.vis{display:inline-flex}
 #map-canvas{touch-action:none}
+/* ── Mobile menu & FAB (desktop: hidden) ──────────────────────── */
+#btn-mob-menu{display:none}
+#mob-menu{display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.55)}
+#mob-menu.open{display:flex;flex-direction:column;justify-content:flex-start}
+#mob-menu-panel{background:var(--bg2);border-bottom:1px solid var(--border2);padding:8px 0;display:flex;flex-direction:column}
+#mob-menu-panel .mob-mi{display:flex;align-items:center;gap:11px;padding:12px 20px;font-size:14px;color:var(--text);border:none;background:none;cursor:pointer;width:100%;text-align:left}
+#mob-menu-panel .mob-mi:active{background:var(--bg3)}
+#mob-menu-panel .mob-mi svg{flex-shrink:0}
+#mob-menu-panel .mob-sep{height:1px;background:var(--border);margin:4px 0}
+#mob-fab{display:none;position:absolute;bottom:56px;right:12px;z-index:150;flex-direction:column;gap:8px}
+#mob-fab button{width:44px;height:44px;border-radius:50%;background:var(--bg2);border:1px solid var(--border2);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-size:18px;padding:0}
+#mob-fab button:active{background:var(--bg3)}
 /* ── Responsive / Mobile ─────────────────────────────────────── */
 @media (max-width:768px){
   *{-webkit-tap-highlight-color:transparent}
-  #topbar{height:auto;min-height:52px;padding:6px 8px;gap:6px;overflow-x:auto;flex-wrap:nowrap}
+  #topbar{height:auto;min-height:52px;padding:6px 10px;gap:6px;flex-wrap:nowrap}
   #topbar .logo{font-size:13px}
   #topbar .logo img{height:22px}
-  .tb-btn{padding:6px 9px;font-size:12px}
+  .tb-btn{padding:8px 10px;font-size:12px;min-height:38px}
   .sep{display:none}
+  .tb-hide-mob{display:none!important}
+  #btn-mob-menu{display:inline-flex!important;margin-left:auto}
   /* Sidebar en tiroir au-dessus de la carte */
-  #sidebar{position:absolute;top:0;bottom:0;left:0;z-index:400;width:78vw;max-width:300px;box-shadow:4px 0 24px rgba(0,0,0,0.5)}
+  #sidebar{position:absolute;top:0;bottom:0;left:0;z-index:400;width:82vw;max-width:320px;box-shadow:4px 0 24px rgba(0,0,0,0.5)}
   #sidebar.closed{width:0;box-shadow:none}
   #sb-resizer{display:none}
   #main{position:relative}
+  /* FAB zoom visible */
+  #mob-fab{display:flex}
   /* Barres GPS en bas, pleine largeur, défilables */
   #gps-calib-bar,#gps-place-bar{top:auto;bottom:0;left:0;right:0;transform:none;width:100%;max-width:100%;border-radius:0;padding:8px 10px;gap:8px;flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start}
   #gps-place-bar label,#gps-calib-bar span{flex-shrink:0}
   #gps-place-bar input[type=range]{width:70px}
   #gps-place-bar input.pl-num{width:40px}
   #gps-calib-bar button,#gps-place-bar button{padding:7px 12px;font-size:12px;flex-shrink:0}
-  /* Popups équipement / groupe : largeur écran */
-  #dpopup,#gpopup{max-width:92vw}
+  /* Popups : bottom sheet */
+  #dpopup,#gpopup{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100vw!important;max-width:100vw!important;border-radius:16px 16px 0 0!important;padding-bottom:env(safe-area-inset-bottom,0);z-index:500!important}
+  #dpopup{min-width:unset;padding:14px 16px 20px}
+  #gpopup{width:100vw!important}
   /* Panneau réglages plein écran */
   .sp{width:100vw;height:100vh;max-height:100vh;border-radius:0}
   .sptabs{overflow-x:auto;white-space:nowrap}
@@ -329,24 +347,40 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
       <img src="https://www.solidays.org/wp-content/uploads/2023/11/s24_logo2l_sansdate.png" alt="Soliday Logo">
       Soliday Map
     </div>
-    <div class="legend" id="legend-wrap"></div>
-    <div class="sep"></div>
+    <div class="legend tb-hide-mob" id="legend-wrap"></div>
+    <div class="sep tb-hide-mob"></div>
     <button class="tb-btn" id="btn-sidebar" title="Panneau équipements">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
     </button>
-    <div class="sep"></div>
-    <button class="tb-btn" id="btn-lock"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span id="llbl">Positions</span></button>
+    <div class="sep tb-hide-mob"></div>
+    <button class="tb-btn tb-hide-mob" id="btn-lock"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span id="llbl">Positions</span></button>
     <button class="tb-btn" id="btn-alerts"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Alertes<span id="abadge" style="display:none;background:var(--crit);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:3px"></span></button>
-    <div class="sep"></div>
-    <button class="tb-btn" id="btn-zin"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
-    <button class="tb-btn" id="btn-zout"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
-    <button class="tb-btn" id="btn-reset"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg></button>
-    <button class="tb-btn" id="btn-ref"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
-    <button class="tb-btn" id="btn-place">🗺️ Placer le plan</button>
-    <div class="sep"></div>
-    <a class="tb-btn" id="btn-help" href="https://github.com/Acidpix/Solidays_Infra_Map/blob/main/GUIDE-UTILISATEUR.md" target="_blank" rel="noopener" title="Guide utilisateur" style="text-decoration:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Aide</a>
-    <button class="tb-btn" id="btn-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Paramètres</button>
-    <button class="tb-btn" id="btn-theme" title="Mode clair / sombre"><svg id="theme-icon-moon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="theme-icon-sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+    <div class="sep tb-hide-mob"></div>
+    <button class="tb-btn tb-hide-mob" id="btn-zin"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+    <button class="tb-btn tb-hide-mob" id="btn-zout"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+    <button class="tb-btn tb-hide-mob" id="btn-reset"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg></button>
+    <button class="tb-btn tb-hide-mob" id="btn-ref"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg></button>
+    <button class="tb-btn tb-hide-mob" id="btn-place">🗺️ Placer le plan</button>
+    <div class="sep tb-hide-mob"></div>
+    <a class="tb-btn tb-hide-mob" id="btn-help" href="https://github.com/Acidpix/Solidays_Infra_Map/blob/main/GUIDE-UTILISATEUR.md" target="_blank" rel="noopener" title="Guide utilisateur" style="text-decoration:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Aide</a>
+    <button class="tb-btn tb-hide-mob" id="btn-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Paramètres</button>
+    <button class="tb-btn tb-hide-mob" id="btn-theme" title="Mode clair / sombre"><svg id="theme-icon-moon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="theme-icon-sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+    <!-- Mobile hamburger menu button -->
+    <button class="tb-btn" id="btn-mob-menu" title="Menu"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
+  </div>
+
+  <!-- Mobile menu overlay -->
+  <div id="mob-menu">
+    <div id="mob-menu-panel">
+      <button class="mob-mi" id="mob-mi-lock"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span id="mob-llbl">Positions</span></button>
+      <button class="mob-mi" id="mob-mi-ref"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Rafraîchir</button>
+      <button class="mob-mi" id="mob-mi-reset"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg> Vue par défaut</button>
+      <div class="mob-sep"></div>
+      <button class="mob-mi" id="mob-mi-theme"><svg width="15" height="15" id="mob-theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg width="15" height="15" id="mob-theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> Mode clair / sombre</button>
+      <button class="mob-mi" id="mob-mi-settings"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Paramètres</button>
+      <div class="mob-sep"></div>
+      <a class="mob-mi" href="https://github.com/Acidpix/Solidays_Infra_Map/blob/main/GUIDE-UTILISATEUR.md" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Aide / Guide</a>
+    </div>
   </div>
 
   <div id="main">
@@ -360,7 +394,16 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
     </div>
     <div id="sb-resizer"></div>
     <!-- Canvas -->
-    <div id="canvas-wrap"><div id="lmap"></div><canvas id="map-canvas"></canvas></div>
+    <div id="canvas-wrap">
+      <div id="lmap"></div>
+      <canvas id="map-canvas"></canvas>
+      <!-- Mobile FAB: zoom controls -->
+      <div id="mob-fab">
+        <button id="mob-fab-zin" title="Zoom +"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+        <button id="mob-fab-zout" title="Zoom -"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
+        <button id="mob-fab-reset" title="Vue par défaut"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg></button>
+      </div>
+    </div>
   </div>
 
   <div id="sb">
@@ -1702,10 +1745,12 @@ document.addEventListener('mousemove',e=>{if(dragSb)return;if(gpsMode)return;if(
 document.addEventListener('mouseup',async e=>{if(gpsMode)return;if(!dragging&&!dragObj&&!mdAt)return;const mv=mdAt&&(Math.abs(e.clientX-mdAt.x)>5||Math.abs(e.clientY-mdAt.y)>5);const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj&&mv){if(dragObj.type==='dev'){await dropDevice(dragObj.ref,sx,sy);}if(dragObj.type==='group')await dragCommitGroup(dragObj.ref);}dragObj=null;dragging=false;wrap.classList.remove('grabbing');mdAt=null;if(mv)return;const g=hGrp(sx,sy);if(g)showGP(g,sx,sy);});
 wrap.addEventListener('mouseleave',()=>{if(!dragging&&!dragObj){hideDP();hovered=null;wrap.style.cursor='grab';}});
 wrap.addEventListener('wheel',e=>{if(gpsMode)return;e.preventDefault();const rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top,f=e.deltaY<0?1.12:0.9,ns=Math.max(.2,Math.min(5,scale*f));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;},{passive:false});
-let lT=null;
-wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;const dig=hDIG(sx,sy);if(dig&&!locked)dragObj={type:'dev',ref:dig.device};else{const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};}else{const d=hDev(sx,sy);if(d&&!locked)dragObj={type:'dev',ref:d};else{dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}}}lT=Array.from(e.touches);},{passive:true});
-wrap.addEventListener('touchmove',e=>{if(e.touches.length===2&&lT&&lT.length===2){const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY),pd=Math.hypot(lT[0].clientX-lT[1].clientX,lT[0].clientY-lT[1].clientY);const cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;const rect=canvas.getBoundingClientRect(),mx=cx-rect.left,my=cy-rect.top,ns=Math.max(.2,Math.min(5,scale*(d/pd)));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;}else if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;if(dragObj){const[rx,ry]=toR(sx,sy);dragApply(dragObj,rx,ry);}else if(dragging){offX=t.clientX-dragStart.x;offY=t.clientY-dragStart.y;}}lT=Array.from(e.touches);},{passive:true});
-wrap.addEventListener('touchend',()=>{if(dragObj){if(dragObj.type==='dev')aSP(dragObj.ref.id,dragObj.ref.x,dragObj.ref.y);if(dragObj.type==='group')dragCommitGroup(dragObj.ref);}dragging=false;dragObj=null;lT=null;},{passive:true});
+let lT=null,tapStart=null;
+wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;tapStart={x:t.clientX,y:t.clientY,time:Date.now()};const dig=hDIG(sx,sy);if(dig&&!locked)dragObj={type:'dev',ref:dig.device};else{const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};}else{const d=hDev(sx,sy);if(d&&!locked)dragObj={type:'dev',ref:d};else{dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}}}else{tapStart=null;}lT=Array.from(e.touches);},{passive:true});
+wrap.addEventListener('touchmove',e=>{if(e.touches.length===2&&lT&&lT.length===2){tapStart=null;const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY),pd=Math.hypot(lT[0].clientX-lT[1].clientX,lT[0].clientY-lT[1].clientY);const cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;const rect=canvas.getBoundingClientRect(),mx=cx-rect.left,my=cy-rect.top,ns=Math.max(.2,Math.min(5,scale*(d/pd)));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;}else if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;if(tapStart&&Math.hypot(t.clientX-tapStart.x,t.clientY-tapStart.y)>12)tapStart=null;if(dragObj){const[rx,ry]=toR(sx,sy);dragApply(dragObj,rx,ry);}else if(dragging){offX=t.clientX-dragStart.x;offY=t.clientY-dragStart.y;}}lT=Array.from(e.touches);},{passive:true});
+wrap.addEventListener('touchend',e=>{if(dragObj){if(dragObj.type==='dev')aSP(dragObj.ref.id,dragObj.ref.x,dragObj.ref.y);if(dragObj.type==='group')dragCommitGroup(dragObj.ref);}const wasDragging=dragging;dragging=false;dragObj=null;lT=null;
+if(!wasDragging&&tapStart&&e.changedTouches.length===1&&(Date.now()-tapStart.time)<400){const t=e.changedTouches[0];if(Math.hypot(t.clientX-tapStart.x,t.clientY-tapStart.y)<15){const rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;const dig=hDIG(sx,sy);if(dig)showDP(dig.device,sx,sy);else{const g=hGrp(sx,sy);if(g)showGP(g,sx,sy);else{const d=hDev(sx,sy);if(d)showDP(d,sx,sy);else{hideDPNow();hideGP();}}}}}
+tapStart=null;},{passive:true});
 
 /* ── Toolbar buttons ───────────────────────────────────────── */
 document.getElementById('btn-sidebar').addEventListener('click',toggleSidebar);
@@ -1715,10 +1760,28 @@ document.getElementById('btn-zout').addEventListener('click',()=>{const f=.8,ns=
 document.getElementById('btn-reset').addEventListener('click',()=>{scale=1;offX=0;offY=0;});
 document.getElementById('btn-ref').addEventListener('click',apiRef);
 
+/* ── Mobile FAB ────────────────────────────────────────────── */
+document.getElementById('mob-fab-zin').addEventListener('click',()=>{const f=1.3,ns=Math.min(5,scale*f);offX=canvas.width/2-(canvas.width/2-offX)*(ns/scale);offY=canvas.height/2-(canvas.height/2-offY)*(ns/scale);scale=ns;});
+document.getElementById('mob-fab-zout').addEventListener('click',()=>{const f=.77,ns=Math.max(.2,scale*f);offX=canvas.width/2-(canvas.width/2-offX)*(ns/scale);offY=canvas.height/2-(canvas.height/2-offY)*(ns/scale);scale=ns;});
+document.getElementById('mob-fab-reset').addEventListener('click',()=>{scale=1;offX=0;offY=0;});
+
+/* ── Mobile menu ───────────────────────────────────────────── */
+function openMobMenu(){document.getElementById('mob-menu').classList.add('open');}
+function closeMobMenu(){document.getElementById('mob-menu').classList.remove('open');}
+document.getElementById('btn-mob-menu').addEventListener('click',openMobMenu);
+document.getElementById('mob-menu').addEventListener('click',e=>{if(e.target===document.getElementById('mob-menu'))closeMobMenu();});
+document.getElementById('mob-mi-lock').addEventListener('click',()=>{locked=!locked;document.getElementById('llbl').textContent=locked?'Verrouillé':'Positions';document.getElementById('mob-llbl').textContent=locked?'Verrouillé':'Positions';document.getElementById('btn-lock').classList.toggle('active',locked);closeMobMenu();});
+document.getElementById('mob-mi-ref').addEventListener('click',()=>{apiRef();closeMobMenu();});
+document.getElementById('mob-mi-reset').addEventListener('click',()=>{scale=1;offX=0;offY=0;closeMobMenu();});
+document.getElementById('mob-mi-settings').addEventListener('click',()=>{openSettings();closeMobMenu();});
+document.getElementById('mob-mi-theme').addEventListener('click',()=>{lightMode=!lightMode;localStorage.setItem('solidayMap.theme',lightMode?'light':'dark');applyTheme();closeMobMenu();});
+
 /* ── Theme ─────────────────────────────────────────────────── */
 function applyTheme(){
   document.documentElement.classList.toggle('light',lightMode);
   document.getElementById('theme-icon-moon').style.display=lightMode?'none':'block';
+  document.getElementById('mob-theme-icon-moon').style.display=lightMode?'none':'block';
+  document.getElementById('mob-theme-icon-sun').style.display=lightMode?'block':'none';
   document.getElementById('theme-icon-sun').style.display=lightMode?'block':'none';
 }
 document.getElementById('btn-theme').addEventListener('click',()=>{lightMode=!lightMode;localStorage.setItem('solidayMap.theme',lightMode?'light':'dark');applyTheme();});
