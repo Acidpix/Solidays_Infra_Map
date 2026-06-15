@@ -147,13 +147,13 @@ router.post('/groups', (req, res) => {
   if (!name) return res.status(400).json({ error: 'name required' });
   const id = uuid();
   db.createGroup(id, name, x || 0.5, y || 0.5, deviceIds, placed);
-  res.json({ id, name, x: x || 0.5, y: y || 0.5, deviceIds, disabled: 0, placed: placed ? 1 : 0 });
+  res.json({ id, name, x: x || 0.5, y: y || 0.5, deviceIds, disabled: 0, placed: placed ? 1 : 0, partial: 0 });
 });
 
 router.put('/groups/:id', (req, res) => {
-  const { name, x, y, deviceIds = [], disabled, placed } = req.body;
+  const { name, x, y, deviceIds = [], disabled, placed, partial } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
-  db.updateGroup(req.params.id, name, x, y, deviceIds, disabled, placed);
+  db.updateGroup(req.params.id, name, x, y, deviceIds, disabled, placed, partial);
   res.json({ ok: true });
 });
 
@@ -208,6 +208,18 @@ router.post('/config/test', async (req, res) => {
 // Normalise un nom pour la correspondance approximative (maj, sans séparateurs)
 function normName(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 
+// Déduit l'état activé/désactivé/partiel d'un groupe depuis le placedStatus du point distant.
+// full  → tout le matériel est posé   → activé, alertes normales
+// partial → une partie est posée      → activé, mais erreurs masquées (équipement restant normal)
+// none/empty/absent → rien n'est posé → désactivé (alertes masquées), comportement existant
+function deployState(p) {
+  switch (p && p.placedStatus) {
+    case 'full': return { disabled: 0, placed: 1, partial: 0 };
+    case 'partial': return { disabled: 0, placed: 0, partial: 1 };
+    default: return { disabled: 1, placed: 0, partial: 0 };
+  }
+}
+
 function syncPoints(points) {
   // Index des devices Zabbix par nom normalisé
   const byNorm = new Map();
@@ -254,13 +266,14 @@ function syncPoints(points) {
       if (dev) { if (!matIds.includes(dev.id)) matIds.push(dev.id); matched++; }
       else unmatched.push({ point: p.name, material: m.name || m.serialNumber || m.unitId || '?' });
     }
+    const ds = deployState(p);
     const g = bySource.get(p.id) || byName.get(p.name.trim().toLowerCase());
     if (g) {
-      db.updateGroup(g.id, p.name, g.x, g.y, matIds, g.disabled || 0, g.placed || 0);
+      db.updateGroup(g.id, p.name, g.x, g.y, matIds, ds.disabled, ds.placed, ds.partial);
       updated++;
     } else {
       const pos = place();
-      db.createGroup(uuid(), p.name, pos.x, pos.y, matIds, 0, p.id);
+      db.createGroup(uuid(), p.name, pos.x, pos.y, matIds, ds.placed, p.id, ds.partial, ds.disabled);
       created++;
     }
   }

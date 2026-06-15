@@ -79,6 +79,8 @@ try { db.exec('ALTER TABLE groups ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0
 try { db.exec('ALTER TABLE groups ADD COLUMN placed INTEGER NOT NULL DEFAULT 0'); } catch (_) {}
 // Migration: add source_id column (id du point distant — synchronisation Device Assigner)
 try { db.exec('ALTER TABLE groups ADD COLUMN source_id TEXT'); } catch (_) {}
+// Migration: add partial column (point partiellement posé — Device Assigner placedStatus='partial')
+try { db.exec('ALTER TABLE groups ADD COLUMN partial INTEGER NOT NULL DEFAULT 0'); } catch (_) {}
 
 // ── Seed default categories ──────────────────────────────────
 const insertCat = db.prepare(`
@@ -167,16 +169,16 @@ module.exports = {
     const getDevices = db.prepare('SELECT device_id FROM group_devices WHERE group_id=?');
     return groups.map(g => ({ ...g, deviceIds: getDevices.all(g.id).map(r => r.device_id) }));
   },
-  createGroup: (id, name, x, y, deviceIds, placed = 0, sourceId = null) => {
+  createGroup: (id, name, x, y, deviceIds, placed = 0, sourceId = null, partial = 0, disabled = 0) => {
     db.transaction(() => {
-      db.prepare('INSERT INTO groups (id, name, x, y, placed, source_id) VALUES (?,?,?,?,?,?)').run(id, name, x, y, placed ? 1 : 0, sourceId);
+      db.prepare('INSERT INTO groups (id, name, x, y, placed, source_id, partial, disabled) VALUES (?,?,?,?,?,?,?,?)').run(id, name, x, y, placed ? 1 : 0, sourceId, partial ? 1 : 0, disabled ? 1 : 0);
       for (const did of deviceIds)
         db.prepare('INSERT INTO group_devices (group_id, device_id) VALUES (?,?)').run(id, did);
     })();
   },
-  updateGroup: (id, name, x, y, deviceIds, disabled = 0, placed = 0) => {
+  updateGroup: (id, name, x, y, deviceIds, disabled = 0, placed = 0, partial = 0) => {
     db.transaction(() => {
-      db.prepare('UPDATE groups SET name=?, x=?, y=?, disabled=?, placed=?, updated_at=unixepoch() WHERE id=?').run(name, x, y, disabled ? 1 : 0, placed ? 1 : 0, id);
+      db.prepare('UPDATE groups SET name=?, x=?, y=?, disabled=?, placed=?, partial=?, updated_at=unixepoch() WHERE id=?').run(name, x, y, disabled ? 1 : 0, placed ? 1 : 0, partial ? 1 : 0, id);
       db.prepare('DELETE FROM group_devices WHERE group_id=?').run(id);
       for (const did of deviceIds)
         db.prepare('INSERT INTO group_devices (group_id, device_id) VALUES (?,?)').run(id, did);
