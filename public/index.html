@@ -650,6 +650,7 @@ let mapBearing=parseFloat(localStorage.getItem('solidayMap.bearing')||'0');
 let savedView=null; // {lat,lng,zoom,bearing}
 let _plDragStart=null,_plBoundsAtDrag=null,_plScale=1;
 let gpsDragObj=null,gpsDragMoved=false,gpsPending=null; // déplacement d'un device/groupe en mode GPS
+let gpsEmptyDown=null; // clic sur la carte sans cible (pour fermer la popup de groupe au relâchement)
 
 function canvasToGps(rx,ry){
   if(!gpsBounds)return null;
@@ -995,7 +996,7 @@ function gpsDown(e){
   const g=!dig?hGrp(csx,csy):null;
   const dv=(!dig&&!g)?hDev(csx,csy):null;
   const target=dig?{type:'dev',ref:dig.device}:g?{type:'group',ref:g}:dv?{type:'dev',ref:dv}:null;
-  if(!target)return; // pas d'item sous le doigt → on laisse la carte se déplacer
+  if(!target){gpsEmptyDown={x:xy.x,y:xy.y};return;} // pas d'item sous le doigt → on laisse la carte se déplacer (et on ferme la popup au relâchement si pas de pan)
   gpsPending={target,sx:csx,sy:csy};
   gpsDragMoved=false;
   if(!locked){gpsDragObj=target;if(lmap&&lmap.dragging)lmap.dragging.disable();}
@@ -1018,7 +1019,12 @@ document.addEventListener('mousemove',gpsMove);
 document.addEventListener('touchmove',gpsMove,{passive:false});
 
 function gpsUp(e){
-  if(!gpsMode||!gpsPending)return;
+  if(!gpsMode)return;
+  if(!gpsPending){ // relâchement après un clic/pan sur la carte (hors équipement/groupe)
+    if(gpsEmptyDown){const xy=evXY(e);const moved=Math.abs(xy.x-gpsEmptyDown.x)>5||Math.abs(xy.y-gpsEmptyDown.y)>5;gpsEmptyDown=null;if(!moved)hideGP();}
+    return;
+  }
+  gpsEmptyDown=null;
   const{target}=gpsPending;const moved=gpsDragMoved;
   gpsPending=null;gpsDragObj=null;
   if(lmap&&lmap.dragging)lmap.dragging.enable();
@@ -1751,7 +1757,7 @@ document.querySelectorAll('.ahf').forEach(b=>b.addEventListener('click',()=>{doc
 /* ── Mouse on canvas ───────────────────────────────────────── */
 wrap.addEventListener('mousedown',e=>{if(gpsMode)return;if(e.target!==canvas)return;if(dragSb)return;e.preventDefault();mdAt={x:e.clientX,y:e.clientY};const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;const dig=hDIG(sx,sy);if(dig&&!locked){dragObj={type:'dev',ref:dig.device};return;}const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};return;}const d=hDev(sx,sy);if(d&&!locked){dragObj={type:'dev',ref:d};return;}dragging=true;dragStart={x:e.clientX-offX,y:e.clientY-offY};wrap.classList.add('grabbing');});
 document.addEventListener('mousemove',e=>{if(dragSb)return;if(gpsMode)return;if(!dragObj&&!dragging&&e.target.closest('.dp'))return;const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj){const[rx,ry]=toR(sx,sy);dragApply(dragObj,rx,ry);hideDPNow();return;}if(dragging){offX=e.clientX-dragStart.x;offY=e.clientY-dragStart.y;hideDPNow();return;}const wr=wrap.getBoundingClientRect();if(e.clientX<wr.left||e.clientX>wr.right||e.clientY<wr.top||e.clientY>wr.bottom){return;}const dig=hDIG(sx,sy);if(dig){hovered={type:'dig',ref:dig.device};wrap.style.cursor='default';showDP(dig.device,sx,sy);return;}const g=hGrp(sx,sy),d=!g?hDev(sx,sy):null;hovered=g?{type:'group',ref:g}:d?{type:'dev',ref:d}:null;wrap.style.cursor=hovered?(locked?'pointer':'move'):'grab';if(d)showDP(d,sx,sy);else hideDP();});
-document.addEventListener('mouseup',async e=>{if(gpsMode)return;if(!dragging&&!dragObj&&!mdAt)return;const mv=mdAt&&(Math.abs(e.clientX-mdAt.x)>5||Math.abs(e.clientY-mdAt.y)>5);const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj&&mv){if(dragObj.type==='dev'){await dropDevice(dragObj.ref,sx,sy);}if(dragObj.type==='group')await dragCommitGroup(dragObj.ref);}dragObj=null;dragging=false;wrap.classList.remove('grabbing');mdAt=null;if(mv)return;const g=hGrp(sx,sy);if(g)showGP(g,sx,sy);});
+document.addEventListener('mouseup',async e=>{if(gpsMode)return;if(!dragging&&!dragObj&&!mdAt)return;const mv=mdAt&&(Math.abs(e.clientX-mdAt.x)>5||Math.abs(e.clientY-mdAt.y)>5);const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj&&mv){if(dragObj.type==='dev'){await dropDevice(dragObj.ref,sx,sy);}if(dragObj.type==='group')await dragCommitGroup(dragObj.ref);}dragObj=null;dragging=false;wrap.classList.remove('grabbing');mdAt=null;if(mv)return;const g=hGrp(sx,sy);if(g)showGP(g,sx,sy);else hideGP();});
 wrap.addEventListener('mouseleave',()=>{if(!dragging&&!dragObj){hideDP();hovered=null;wrap.style.cursor='grab';}});
 wrap.addEventListener('wheel',e=>{if(gpsMode)return;e.preventDefault();const rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top,f=e.deltaY<0?1.06:0.945,ns=Math.max(.2,Math.min(5,scale*f));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;},{passive:false});
 let lT=null,tapStart=null;
