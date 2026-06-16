@@ -96,7 +96,7 @@ function formatUptime(seconds) {
   return `${d}j ${h}h`;
 }
 
-async function getHosts(cfg, categories = []) {
+async function getHosts(cfg, categories = [], milestoneMacro = '{$MILESTONE_ID}') {
   const url = buildUrl(cfg);
   const auth = await login(cfg);
 
@@ -106,6 +106,7 @@ async function getHosts(cfg, categories = []) {
     hosts = await zabbixCall(url, 'host.get', {
       output: ['hostid', 'name', 'status'],
       selectHostGroups: ['name'],
+      selectMacros: ['macro', 'value'],
       filter: { status: 0 },
     }, auth);
   } catch (e) {
@@ -113,9 +114,15 @@ async function getHosts(cfg, categories = []) {
     hosts = await zabbixCall(url, 'host.get', {
       output: ['hostid', 'name', 'status'],
       selectGroups: ['name'],
+      selectMacros: ['macro', 'value'],
       filter: { status: 0 },
     }, auth);
   }
+
+  // Préfixe de la série de macros Milestone : "{$MILESTONE_ID}" → "{$MILESTONE_ID"
+  // pour matcher la base (suffixe implicite 1) et les variantes "{$MILESTONE_ID2}", etc.
+  const msPrefix = String(milestoneMacro || '{$MILESTONE_ID}').replace(/\}\s*$/, '');
+  const msRe = new RegExp('^' + msPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(\\d*)\\}$');
 
   // Debug: log groups of first host to verify field name
   if (hosts.length > 0) {
@@ -167,6 +174,14 @@ async function getHosts(cfg, categories = []) {
     if (metrics.ping !== undefined) metrics.ping = metrics.ping === 1 || metrics.ping === '1';
     else metrics.ping = true;
 
+    // Flux vidéo Milestone : collecte des macros {$MILESTONE_ID}, {$MILESTONE_ID2}, …
+    // triées par suffixe numérique (base = 1), filtrées sur valeur non vide.
+    const milestoneIds = (host.macros || [])
+      .map(m => { const mt = msRe.exec(m.macro); return mt ? { n: mt[1] ? parseInt(mt[1], 10) : 1, v: (m.value || '').trim() } : null; })
+      .filter(m => m && m.v)
+      .sort((a, b) => a.n - b.n)
+      .map(m => m.v);
+
     return {
       id: `zbx_${host.hostid}`,
       zabbix_id: host.hostid,
@@ -175,6 +190,7 @@ async function getHosts(cfg, categories = []) {
       hostGroups, // mémorisé pour permettre une re-catégorisation sans re-polling Zabbix
       ip: ipByHost[host.hostid] || '',
       ...metrics,
+      milestoneIds,
       status: 'ok',
     };
   });

@@ -29,7 +29,8 @@ async function fetchDevices() {
   }
   try {
     const categories = db.getAllCategories();
-    const devices = await zabbix.getHosts(cfg, categories);
+    const milestoneMacro = (db.getConfig('milestone') || {}).macroName || '{$MILESTONE_ID}';
+    const devices = await zabbix.getHosts(cfg, categories, milestoneMacro);
     evaluateAll(devices);
     applyPositions(devices);
     devicesCache = devices;
@@ -169,9 +170,10 @@ router.get('/config', (req, res) => {
   const gpsCfg = db.getConfig('gps') || null;
   const mapviewCfg = db.getConfig('mapview') || null;
   const syncCfg = db.getConfig('sync') || null;
+  const milestoneCfg = db.getConfig('milestone') || null;
   const safe = { ...zabbixCfg, pass: zabbixCfg.pass ? '••••••••' : '' };
   const safeSync = syncCfg ? { ...syncCfg, apiKey: syncCfg.apiKey ? '••••••••' : '' } : null;
-  res.json({ zabbix: safe, display: displayCfg, gps: gpsCfg, mapview: mapviewCfg, sync: safeSync });
+  res.json({ zabbix: safe, display: displayCfg, gps: gpsCfg, mapview: mapviewCfg, sync: safeSync, milestone: milestoneCfg });
 });
 
 router.post('/config', (req, res) => {
@@ -190,6 +192,10 @@ router.post('/config', (req, res) => {
     const existing = db.getConfig('sync') || {};
     if (s.apiKey === '••••••••') s.apiKey = existing.apiKey || '';
     db.setConfig('sync', s);
+  }
+  if ('milestone' in req.body) {
+    db.setConfig('milestone', req.body.milestone);
+    scheduleRefresh(); // le nom de macro peut avoir changé → re-poll Zabbix
   }
   res.json({ ok: true });
 });

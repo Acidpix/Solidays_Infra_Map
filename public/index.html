@@ -18,8 +18,13 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe 
 .logo{font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;margin-right:6px;color:var(--text)}
 .logo img{height:70px;width:auto;display:block}
 .legend{display:flex;align-items:center;gap:12px;flex:1;flex-wrap:wrap}
-.leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2)}
+.leg{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--text2);cursor:pointer;user-select:none;padding:2px 6px;border-radius:5px;transition:background .12s,opacity .12s}
+.leg:hover{background:rgba(255,255,255,0.07)}
+:root.light .leg:hover{background:rgba(0,0,0,0.06)}
+.leg.off{opacity:0.4}
+.leg.off .leg-txt{text-decoration:line-through}
 .leg-sq{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+.leg-ico{width:13px;height:13px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
 .tb-btn{display:flex;align-items:center;gap:5px;padding:5px 11px;border-radius:var(--r);border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:12px;cursor:pointer;transition:background .15s,color .15s,border-color .15s;white-space:nowrap}
 .tb-btn:hover{background:var(--bg3);color:var(--text);border-color:var(--border3)}
@@ -139,6 +144,20 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe 
 /* Overlays */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:500;display:flex;align-items:center;justify-content:center}
 .ov.h{display:none}
+/* Bouton "Voir le flux" dans la popup équipement */
+.dp-cam{margin-top:10px;width:100%;padding:8px 10px;border:none;border-radius:8px;background:#378ADD;color:#fff;font-size:12px;font-weight:600;cursor:pointer}
+.dp-cam:hover{background:#2f78c2}
+/* Modal flux vidéo caméra */
+#ov-cam{z-index:560}
+.cam-box{width:min(92vw,1100px);height:min(86vh,720px);background:var(--bg2,#1b1f27);border:1px solid var(--border);border-radius:14px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.cam-head{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.cam-title{font-weight:700;font-size:14px;color:var(--text,#e8ebf0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:30%}
+.cam-tabs{display:flex;gap:6px;flex:1;flex-wrap:wrap}
+.cam-tabs .cam-tab{padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text2,#aab);font-size:12px;cursor:pointer}
+.cam-tabs .cam-tab.on{background:#378ADD;border-color:#378ADD;color:#fff}
+#cam-newtab{font-size:12px;color:#378ADD;text-decoration:none;white-space:nowrap}
+.cam-box iframe{flex:1;width:100%;border:none;background:#000}
+@media(max-width:640px){.cam-box{width:100vw;height:100vh;border-radius:0}.cam-title{display:none}}
 /* Group modal */
 .mo{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:20px 22px;width:340px}
 .mo h3{font-size:14px;font-weight:600;margin-bottom:14px}
@@ -294,6 +313,13 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 #mob-menu-panel .mob-mi:active{background:var(--bg3)}
 #mob-menu-panel .mob-mi svg{flex-shrink:0}
 #mob-menu-panel .mob-sep{height:1px;background:var(--border);margin:4px 0}
+#mob-menu-panel .mob-fhdr{padding:4px 20px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--text3)}
+#mob-menu-panel .mob-fi{gap:11px}
+#mob-menu-panel .mob-fi .mob-chk{width:18px;height:18px;border:2px solid var(--text3);border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;line-height:1}
+#mob-menu-panel .mob-fi.on .mob-chk{background:#378ADD;border-color:#378ADD}
+#mob-menu-panel .mob-fi.off{color:var(--text3)}
+#mob-menu-panel .mob-fi .mob-fsq{width:12px;height:12px;border-radius:3px;flex-shrink:0}
+#mob-menu-panel .mob-fi .leg-ico{width:14px;height:14px}
 #mob-fab{display:none;position:absolute;bottom:56px;right:12px;z-index:150;flex-direction:column;gap:8px}
 #mob-fab button{width:44px;height:44px;border-radius:50%;background:var(--bg2);border:1px solid var(--border2);color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.4);font-size:18px;padding:0}
 #mob-fab button:active{background:var(--bg3)}
@@ -376,6 +402,9 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
       <button class="mob-mi" id="mob-mi-lock"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span id="mob-llbl">Positions</span></button>
       <button class="mob-mi" id="mob-mi-ref"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Rafraîchir</button>
       <button class="mob-mi" id="mob-mi-reset"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg> Vue par défaut</button>
+      <div class="mob-sep"></div>
+      <div class="mob-fhdr">Filtres d'affichage</div>
+      <div id="mob-filter"></div>
       <div class="mob-sep"></div>
       <button class="mob-mi" id="mob-mi-theme"><svg width="15" height="15" id="mob-theme-icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg width="15" height="15" id="mob-theme-icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg> Mode clair / sombre</button>
       <button class="mob-mi" id="mob-mi-settings"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Paramètres</button>
@@ -526,6 +555,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
       <div class="spt" data-t="display">Affichage</div>
       <div class="spt" data-t="gps">GPS / Carte</div>
       <div class="spt" data-t="sync">Synchronisation</div>
+      <div class="spt" data-t="milestone">Vidéo</div>
     </div>
     <div class="spb">
       <div id="st-zabbix">
@@ -594,8 +624,28 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
           <div id="syncreport" style="margin-top:12px;font-size:12px;color:var(--text2)"></div>
         </div>
       </div>
+      <div id="st-milestone" style="display:none">
+        <div class="sps"><div class="spst">Flux vidéo — Milestone XProtect</div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Un bouton « Voir le flux » apparaît sur les caméras qui exposent un ID Milestone via une macro Zabbix. L'URL doit contenir <code>{id}</code> (remplacé par l'ID de la caméra). Plusieurs flux par caméra sont gérés via les macros numérotées (<code>{$MILESTONE_ID}</code>, <code>{$MILESTONE_ID2}</code>, …).</p>
+          <div class="spf" style="margin-bottom:10px"><div class="spl">URL du Web Client <span class="hi">(avec {id})</span></div><input class="spi" id="ms-url" type="text" placeholder="https://serveur/index.html#/view/{id}"></div>
+          <div class="spf" style="max-width:240px"><div class="spl">Macro Zabbix <span class="hi">(de base)</span></div><input class="spi" id="ms-macro" type="text" placeholder="{$MILESTONE_ID}"></div>
+        </div>
+      </div>
     </div>
     <div class="spft"><span class="bsv" id="bsv">✓ Sauvegardé</span><button class="spca" id="spca">Annuler</button><button class="spsv" id="spsv">Enregistrer</button></div>
+  </div>
+</div>
+
+<!-- Flux vidéo caméra (Milestone) -->
+<div class="ov h" id="ov-cam">
+  <div class="cam-box">
+    <div class="cam-head">
+      <div class="cam-title" id="cam-title">Caméra</div>
+      <div class="cam-tabs" id="cam-tabs"></div>
+      <a id="cam-newtab" href="#" target="_blank" rel="noopener" title="Ouvrir dans un nouvel onglet">Nouvel onglet ↗</a>
+      <button class="spX" id="camX">✕</button>
+    </div>
+    <iframe id="cam-frame" allow="fullscreen; autoplay; camera; microphone" allowfullscreen></iframe>
   </div>
 </div>
 
@@ -622,6 +672,22 @@ const SDOT={ok:'#1D9E75',warn:'#EF9F27',crit:'#E24B4A'};
 let TYPES={};
 let categories=[];
 let disp={labels:false,halos:true,grid:true};
+// Filtre d'affichage (préférence locale) : masquer les points/groupes et/ou des types d'équipement.
+// filter.types[catId]===false => type masqué ; absent ou true => visible.
+let filter={groups:true,types:{}};
+try{const _f=JSON.parse(localStorage.getItem('solidayMap.filter')||'null');if(_f&&typeof _f==='object'){filter.groups=_f.groups!==false;filter.types=_f.types||{};}}catch(e){}
+function saveFilter(){localStorage.setItem('solidayMap.filter',JSON.stringify(filter));}
+function tVis(t){return filter.types[t]!==false;}
+function gVis(){return filter.groups!==false;}
+function allVis(){return gVis()&&categories.every(c=>tVis(c.id));}
+function setAllVis(v){filter.groups=v;filter.types={};if(!v)categories.forEach(c=>filter.types[c.id]=false);saveFilter();}
+// Bascule partagée entre la légende (desktop) et le menu mobile, via les data-attributes.
+function toggleFilter(ds){
+  if(ds.f==='all')setAllVis(!allVis());
+  else if(ds.f==='groups'){filter.groups=!gVis();saveFilter();}
+  else if(ds.f==='type'){filter.types[ds.t]=!tVis(ds.t);saveFilter();}
+  lgnd();
+}
 let devices=[],groups=[];
 let scale=1,offX=0,offY=0,dragging=false,dragStart=null,dragObj=null;
 let iconScale=parseFloat(localStorage.getItem('solidayMap.iconScale')||'1');
@@ -959,7 +1025,28 @@ function loadBgImage(){loadBgFromServer();}
 
 /* ── TYPES & Legend ────────────────────────────────────────── */
 function initTypes(cats){cats.forEach(c=>{TYPES[c.id]={label:c.name,color:c.color,icon:c.icon||c.name.charAt(0).toUpperCase()};});}
-function lgnd(){const w=document.getElementById('legend-wrap');w.innerHTML=categories.map(c=>`<div class="leg"><div class="leg-sq" style="background:${TYPES[c.id]?.color||c.color}"></div>${c.name}</div>`).join('');}
+// Légende interactive = filtre d'affichage. Cliquer un élément masque/affiche les points
+// ou un type d'équipement (sur la carte). Préférence persistée en localStorage.
+const PIN_ICO=`<svg class="leg-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+function lgnd(){
+  const w=document.getElementById('legend-wrap');
+  let html=`<div class="leg leg-all${allVis()?'':' off'}" data-f="all" title="Tout afficher / tout masquer"><span class="leg-txt">▦ Tout</span></div>`;
+  html+=`<div class="leg${gVis()?'':' off'}" data-f="groups" title="Afficher / masquer les points">${PIN_ICO}<span class="leg-txt">Points</span></div>`;
+  html+=categories.map(c=>`<div class="leg${tVis(c.id)?'':' off'}" data-f="type" data-t="${c.id}" title="Afficher / masquer ce type"><div class="leg-sq" style="background:${TYPES[c.id]?.color||c.color}"></div><span class="leg-txt">${c.name}</span></div>`).join('');
+  w.innerHTML=html;
+  buildMobFilter();
+}
+document.getElementById('legend-wrap').addEventListener('click',e=>{const el=e.target.closest('.leg');if(el)toggleFilter(el.dataset);});
+// Filtre d'affichage côté mobile (dans le menu hamburger), synchronisé avec la légende.
+function buildMobFilter(){
+  const c=document.getElementById('mob-filter');if(!c)return;
+  const row=(f,on,label,extra,t)=>`<button class="mob-mi mob-fi ${on?'on':'off'}" data-f="${f}"${t?` data-t="${t}"`:''}><span class="mob-chk">${on?'✓':''}</span>${extra||''}<span>${label}</span></button>`;
+  let h=row('all',allVis(),'Tout afficher');
+  h+=row('groups',gVis(),'Points',PIN_ICO);
+  h+=categories.map(cat=>row('type',tVis(cat.id),cat.name,`<span class="mob-fsq" style="background:${TYPES[cat.id]?.color||cat.color}"></span>`,cat.id)).join('');
+  c.innerHTML=h;
+}
+document.getElementById('mob-filter').addEventListener('click',e=>{const el=e.target.closest('.mob-fi');if(el)toggleFilter(el.dataset);});
 function devIcon(d){return(TYPES[d.type]?.icon||d.type.charAt(0)).toUpperCase();}
 function iconFontSize(ico){const two=ico.length>1;return Math.max(two?6:9,(two?8:11)*scale)*iconScale;}
 
@@ -1172,7 +1259,7 @@ function draw(){
   if(bgImage&&!gpsMode){ctx.save();ctx.globalAlpha=0.95;ctx.setTransform(scale,0,0,scale,offX,offY);const iw=bgImage.width,ih=bgImage.height,sw=canvas.width,sh=canvas.height,scaleImg=Math.max(sw/iw,sh/ih),iw2=iw*scaleImg,ih2=ih*scaleImg;ctx.drawImage(bgImage,(sw-iw2)/2,(sh-ih2)/2,iw2,ih2);ctx.restore();ctx.setTransform(1,0,0,1,0,0);}
   if(disp.grid&&!gpsMode){ctx.save();ctx.strokeStyle=mapLight?'rgba(0,0,0,0.08)':'rgba(255,255,255,0.03)';ctx.lineWidth=1;const gs=50*scale,ox=offX%gs,oy=offY%gs;for(let x=ox;x<canvas.width;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}for(let y=oy;y<canvas.height;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}ctx.restore();}
   const SZ=DSZ(),half=SZ/2,CR=Math.max(2,3*scale)*iconScale;
-  for(const g of groups){
+  for(const g of (gVis()?groups:[])){
     const st=gSt(g),bb=gBB(g);const{x:bx,y:by,w:bw,h:bh,devs,cx,cy,lblH,empty}=bb;
     const gcr=GCR();
     const gc={ok:TYPES[devs[0]?.d?.type]?.color||'#378ADD',placed:'#1D9E75',warn:'#EF9F27',crit:'#E24B4A',disabled:'#6b7280',partial:'#8B5CF6'}[st]||'#6b7280';
@@ -1183,7 +1270,7 @@ function draw(){
     ctx.fillStyle=mapLight?'rgba(20,25,40,0.9)':'rgba(220,227,245,0.85)';ctx.font=`600 ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.name,cx,by+lblH/2);
     if(!empty){
       const SZg=DSZ(),hg=SZg/2,CRg=Math.max(2,3*scale)*iconScale;
-      for(const p of devs){const d=p.d,sx=p.sx,sy=p.sy,t=TYPES[d.type]||{color:'#666'};
+      for(const p of devs){const d=p.d,sx=p.sx,sy=p.sy,t=TYPES[d.type]||{color:'#666'};if(!tVis(d.type))continue;
         if(disp.halos&&(d.status==='crit'||d.status==='warn')){const pl=0.5+0.5*Math.sin(pulseT*(d.status==='crit'?3.2:1.8));const hp=3+pl*4;rr(sx-hg-hp,sy-hg-hp,SZg+hp*2,SZg+hp*2,CRg+2);ctx.fillStyle=hexA(d.status==='crit'?'#E24B4A':'#EF9F27',0.22+0.15*pl);ctx.fill();}
         rr(sx-hg,sy-hg,SZg,SZg,CRg);ctx.fillStyle=t.color;ctx.fill();
         const iHD=hovered&&hovered.type==='dig'&&hovered.ref===d;if(iHD){ctx.strokeStyle='rgba(255,255,255,0.85)';ctx.lineWidth=2;ctx.stroke();}
@@ -1195,7 +1282,7 @@ function draw(){
     else if(st==='placed'){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(bx+bw-br,by+br,br,0,Math.PI*2);ctx.fillStyle='rgba(29,158,117,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',bx+bw-br,by+br);}
     else if(g.partial){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(bx+bw-br,by+br,br,0,Math.PI*2);ctx.fillStyle='rgba(139,92,246,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('½',bx+bw-br,by+br);}
     ctx.globalAlpha=1;}
-  for(const d of free()){const[sx,sy]=toS(d.x,d.y),t=TYPES[d.type]||{color:'#666'},iH=hovered&&hovered.type==='dev'&&hovered.ref===d;
+  for(const d of free()){if(!tVis(d.type))continue;const[sx,sy]=toS(d.x,d.y),t=TYPES[d.type]||{color:'#666'},iH=hovered&&hovered.type==='dev'&&hovered.ref===d;
     if(disp.halos&&(d.status==='crit'||d.status==='warn')){const p=0.5+0.5*Math.sin(pulseT*(d.status==='crit'?3:1.5));const pp=5+p*7,hc=d.status==='crit'?'#E24B4A':'#EF9F27';rr(sx-half-pp,sy-half-pp,SZ+pp*2,SZ+pp*2,CR+3);ctx.fillStyle=hexA(hc,0.22+0.15*p);ctx.fill();ctx.strokeStyle=hexA(hc,0.5+0.3*p);ctx.lineWidth=1.5;ctx.stroke();}
     rr(sx-half,sy-half,SZ,SZ,CR);ctx.fillStyle=t.color;ctx.fill();if(iH){ctx.strokeStyle='rgba(255,255,255,0.85)';ctx.lineWidth=2;ctx.stroke();}
     const _ico2=devIcon(d);ctx.fillStyle='rgba(255,255,255,0.92)';ctx.font=`bold ${iconFontSize(_ico2)}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(_ico2,sx,sy);
@@ -1220,20 +1307,32 @@ function draw(){
 
 function animate(){pulseT+=0.04;draw();requestAnimationFrame(animate);}
 
-function hGrp(sx,sy){for(const g of groups){const{x:bx,y:by,w:bw,h:bh}=gBB(g);if(sx>=bx-4&&sx<=bx+bw+4&&sy>=by-4&&sy<=by+bh+4)return g;}return null;}
-function hDev(sx,sy){const h=DSZ()/2+4;for(const d of free()){const[dx,dy]=toS(d.x,d.y);if(sx>=dx-h&&sx<=dx+h&&sy>=dy-h&&sy<=dy+h)return d;}return null;}
-function hDIG(sx,sy){const h=DSZ()/2+4;for(const g of groups){const bb=gBB(g);if(bb.empty)continue;for(const p of bb.devs){if(sx>=p.sx-h&&sx<=p.sx+h&&sy>=p.sy-h&&sy<=p.sy+h)return{device:p.d,cx:p.sx,cy:p.sy};}}return null;}
+function hGrp(sx,sy){if(!gVis())return null;for(const g of groups){const{x:bx,y:by,w:bw,h:bh}=gBB(g);if(sx>=bx-4&&sx<=bx+bw+4&&sy>=by-4&&sy<=by+bh+4)return g;}return null;}
+function hDev(sx,sy){const h=DSZ()/2+4;for(const d of free()){if(!tVis(d.type))continue;const[dx,dy]=toS(d.x,d.y);if(sx>=dx-h&&sx<=dx+h&&sy>=dy-h&&sy<=dy+h)return d;}return null;}
+function hDIG(sx,sy){if(!gVis())return null;const h=DSZ()/2+4;for(const g of groups){const bb=gBB(g);if(bb.empty)continue;for(const p of bb.devs){if(!tVis(p.d.type))continue;if(sx>=p.sx-h&&sx<=p.sx+h&&sy>=p.sy-h&&sy<=p.sy+h)return{device:p.d,cx:p.sx,cy:p.sy};}}return null;}
 
 /* ── Device popup ──────────────────────────────────────────── */
 const dp=document.getElementById('dpopup');
+let milestoneCfg=null; // {webClientUrl, macroName} — config Milestone (flux vidéo caméras)
 function DR(l,v,c=''){return`<div class="dpr"><span class="dprl">${l}</span><span class="dprv ${c}">${v}</span></div>`;}
-function showDP(d,sx,sy){clearTimeout(dpHideTimer);const t=TYPES[d.type]||{color:'#666',label:d.type};let h=`<div class="dph"><div class="dpsq" style="background:${t.color}"></div><div><div class="dpnm">${d.name}</div><div class="dpty">${t.label}</div></div></div>`;h+=DR('IP',d.ip||'—');h+=DR('Ping',d.ping?'Actif':'Inactif',d.ping?'ok':'c');if(d.latency!=null)h+=DR('Latence',d.latency+' ms',d.latency>15?'w':'');if(d.signal!=null)h+=DR('Signal',d.signal+' dBm',d.signal<-75?'w':'');if(d.channel!=null)h+=DR('Canal radio',d.channel);if(d.clients!=null)h+=DR('Clients',d.clients);if(d.temp!=null)h+=DR('Température',d.temp+' °C',d.temp>60?'c':d.temp>45?'w':'');if(d.power!=null)h+=DR('Puissance',d.power+' W');if(d.connFailure!=null)h+=DR('Échecs connexion',d.connFailure,d.connFailure>0?'w':'');if(d.ports!=null)h+=DR('Ports UP/Total',`${d.portsUp}/${d.ports}`,d.portsUp<d.ports*.5?'w':'');if(d.resolution)h+=DR('Résolution',d.resolution);if(d.fps!=null)h+=DR('FPS',d.fps+' fps',d.fps<15?'c':'');if(d.uptime)h+=DR('Uptime',d.uptime);if(d.trigger)h+=`<div class="dptg"><div class="tl">⚡ Trigger</div><div class="tm">${d.trigger}</div></div>`;const _dgps=deviceToGps(d);if(_dgps)h+=`<div class="dpr"><span class="dprl">GPS</span><span class="dprv"><a href="${gmapsUrl(_dgps.lat,_dgps.lng)}" target="_blank" style="color:#378ADD;text-decoration:none;font-size:11px">${_dgps.lat.toFixed(5)}, ${_dgps.lng.toFixed(5)} ↗</a></span></div>`;dp.innerHTML=h;let px=sx+16,py=sy-10;if(px+270>wrap.clientWidth)px=sx-270-8;if(py+310>wrap.clientHeight)py=sy-290;if(py<0)py=4;dp.style.left=px+'px';dp.style.top=py+'px';dp.classList.add('v');}
+function showDP(d,sx,sy){clearTimeout(dpHideTimer);const t=TYPES[d.type]||{color:'#666',label:d.type};let h=`<div class="dph"><div class="dpsq" style="background:${t.color}"></div><div><div class="dpnm">${d.name}</div><div class="dpty">${t.label}</div></div></div>`;h+=DR('IP',d.ip||'—');h+=DR('Ping',d.ping?'Actif':'Inactif',d.ping?'ok':'c');if(d.latency!=null)h+=DR('Latence',d.latency+' ms',d.latency>15?'w':'');if(d.signal!=null)h+=DR('Signal',d.signal+' dBm',d.signal<-75?'w':'');if(d.channel!=null)h+=DR('Canal radio',d.channel);if(d.clients!=null)h+=DR('Clients',d.clients);if(d.temp!=null)h+=DR('Température',d.temp+' °C',d.temp>60?'c':d.temp>45?'w':'');if(d.power!=null)h+=DR('Puissance',d.power+' W');if(d.connFailure!=null)h+=DR('Échecs connexion',d.connFailure,d.connFailure>0?'w':'');if(d.ports!=null)h+=DR('Ports UP/Total',`${d.portsUp}/${d.ports}`,d.portsUp<d.ports*.5?'w':'');if(d.resolution)h+=DR('Résolution',d.resolution);if(d.fps!=null)h+=DR('FPS',d.fps+' fps',d.fps<15?'c':'');if(d.uptime)h+=DR('Uptime',d.uptime);if(d.trigger)h+=`<div class="dptg"><div class="tl">⚡ Trigger</div><div class="tm">${d.trigger}</div></div>`;const _dgps=deviceToGps(d);if(_dgps)h+=`<div class="dpr"><span class="dprl">GPS</span><span class="dprv"><a href="${gmapsUrl(_dgps.lat,_dgps.lng)}" target="_blank" style="color:#378ADD;text-decoration:none;font-size:11px">${_dgps.lat.toFixed(5)}, ${_dgps.lng.toFixed(5)} ↗</a></span></div>`;if(d.milestoneIds&&d.milestoneIds.length&&milestoneCfg&&milestoneCfg.webClientUrl)h+=`<button class="dp-cam" data-id="${d.id}">📹 Voir le flux${d.milestoneIds.length>1?` (${d.milestoneIds.length})`:''}</button>`;dp.innerHTML=h;let px=sx+16,py=sy-10;if(px+270>wrap.clientWidth)px=sx-270-8;if(py+310>wrap.clientHeight)py=sy-290;if(py<0)py=4;dp.style.left=px+'px';dp.style.top=py+'px';dp.classList.add('v');}
 let dpHideTimer=null;
 // Masquage différé : laisse le temps d'amener la souris dans la popup pour cliquer le lien GPS.
 function hideDP(){clearTimeout(dpHideTimer);dpHideTimer=setTimeout(()=>dp.classList.remove('v'),260);}
 function hideDPNow(){clearTimeout(dpHideTimer);dp.classList.remove('v');}
 dp.addEventListener('mouseenter',()=>clearTimeout(dpHideTimer));
 dp.addEventListener('mouseleave',hideDPNow);
+// Bouton "Voir le flux" → ouvre le modal caméra (Milestone Web Client)
+dp.addEventListener('click',e=>{const b=e.target.closest('.dp-cam');if(!b)return;const d=devices.find(x=>x.id===b.dataset.id);if(d)openCam(d);});
+
+/* ── Flux vidéo caméra (Milestone) ─────────────────────────── */
+let camIds=[];
+function camUrl(id){return (milestoneCfg&&milestoneCfg.webClientUrl||'').replace(/\{id\}/g,encodeURIComponent(id));}
+function showStream(i){if(!camIds[i])return;const url=camUrl(camIds[i]);document.getElementById('cam-frame').src=url;document.getElementById('cam-newtab').href=url;document.querySelectorAll('#cam-tabs .cam-tab').forEach((b,k)=>b.classList.toggle('on',k===i));}
+function openCam(d){if(!d.milestoneIds||!d.milestoneIds.length||!(milestoneCfg&&milestoneCfg.webClientUrl))return;camIds=d.milestoneIds.slice();document.getElementById('cam-title').textContent=d.name;const tabs=document.getElementById('cam-tabs');tabs.innerHTML=camIds.length>1?camIds.map((_,i)=>`<button class="cam-tab" data-i="${i}">Flux ${i+1}</button>`).join(''):'';tabs.querySelectorAll('.cam-tab').forEach(b=>b.addEventListener('click',()=>showStream(parseInt(b.dataset.i,10))));hideDPNow();document.getElementById('ov-cam').classList.remove('h');showStream(0);}
+function closeCam(){document.getElementById('ov-cam').classList.add('h');document.getElementById('cam-frame').src='about:blank';}
+document.getElementById('camX').addEventListener('click',closeCam);
+document.getElementById('ov-cam').addEventListener('click',e=>{if(e.target.id==='ov-cam')closeCam();});
 
 /* ── Group popup ───────────────────────────────────────────── */
 const gp=document.getElementById('gpopup');
@@ -1616,6 +1715,11 @@ async function openSettings(){
   document.getElementById('synckey').value=sc.apiKey||'';
   document.getElementById('syncres').textContent='';
   document.getElementById('syncreport').innerHTML='';
+  // Vidéo / Milestone
+  milestoneCfg=cfg.milestone||null;
+  const ms=cfg.milestone||{};
+  document.getElementById('ms-url').value=ms.webClientUrl||'';
+  document.getElementById('ms-macro').value=ms.macroName||'';
   buildClrEd();
   triggersData=await fetch(`${API}/triggers`).then(r=>r.json());
   // Ensure all categories have an entry
@@ -1638,13 +1742,15 @@ document.getElementById('icon-scale-num').addEventListener('change',e=>{
   e.target.value=(v*100).toFixed(1);
   document.getElementById('icon-scale').value=v;iconScale=v;
 });
-document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display,#st-gps,#st-sync').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
+document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display,#st-gps,#st-sync,#st-milestone').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
 document.getElementById('ztest').addEventListener('click',async()=>{const cfg={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value,path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value};const res=document.getElementById('ztres');res.style.color='var(--text3)';res.textContent='Connexion…';try{const r=await fetch(`${API}/config/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}).then(r=>r.json());if(r.ok){res.style.color='var(--ok)';res.textContent=`✓ Zabbix API v${r.version}`;}else{res.style.color='var(--crit)';res.textContent=`✗ ${r.error}`;}}catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}});
 document.getElementById('spsv').addEventListener('click',async()=>{
   const z={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value||'80',path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value,refresh:parseInt(document.getElementById('zri').value)||30,timeout:parseInt(document.getElementById('zto').value)||10,autoRefresh:document.getElementById('zar').checked};
   const d={labels:document.getElementById('dlbl').checked,halos:document.getElementById('dhalo').checked,grid:document.getElementById('dgrid').checked};
   const sync={url:document.getElementById('syncurl').value.trim(),apiKey:document.getElementById('synckey').value};
-  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zabbix:z,display:d,sync})});
+  const milestone={webClientUrl:document.getElementById('ms-url').value.trim(),macroName:document.getElementById('ms-macro').value.trim()||'{$MILESTONE_ID}'};
+  milestoneCfg=milestone;
+  await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zabbix:z,display:d,sync,milestone})});
   // Save category colors
   await Promise.all(categories.filter(cat=>TYPES[cat.id]&&TYPES[cat.id].color!==cat.color).map(cat=>{cat.color=TYPES[cat.id].color;return fetch(`${API}/categories/${cat.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(cat)});}));
   const fl=Object.values(triggersData).flat();
@@ -1816,6 +1922,7 @@ fetchCategories().then(()=>{
     if(cfg.gps){gpsBounds=cfg.gps;if(cfg.gps.rotation!=null)overlayRotation=cfg.gps.rotation;if(cfg.gps.bearing!=null)mapBearing=cfg.gps.bearing;}
     if(cfg.mapview)savedView=cfg.mapview;
     if(cfg.display)disp={...disp,...cfg.display};
+    milestoneCfg=cfg.milestone||null;
     if(gpsMode)applyGpsMode();
   }).catch(()=>{if(gpsMode)applyGpsMode();});
   setInterval(loadData,30000);
