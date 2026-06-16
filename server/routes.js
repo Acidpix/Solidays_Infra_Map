@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('./db');
 const zabbix = require('./zabbix');
+const milestone = require('./milestone');
 const { evaluateAll } = require('./triggers');
 const path = require('path');
 const fs = require('fs');
@@ -173,7 +174,8 @@ router.get('/config', (req, res) => {
   const milestoneCfg = db.getConfig('milestone') || null;
   const safe = { ...zabbixCfg, pass: zabbixCfg.pass ? '••••••••' : '' };
   const safeSync = syncCfg ? { ...syncCfg, apiKey: syncCfg.apiKey ? '••••••••' : '' } : null;
-  res.json({ zabbix: safe, display: displayCfg, gps: gpsCfg, mapview: mapviewCfg, sync: safeSync, milestone: milestoneCfg });
+  const safeMs = milestoneCfg ? { ...milestoneCfg, password: milestoneCfg.password ? '••••••••' : '' } : null;
+  res.json({ zabbix: safe, display: displayCfg, gps: gpsCfg, mapview: mapviewCfg, sync: safeSync, milestone: safeMs });
 });
 
 router.post('/config', (req, res) => {
@@ -194,7 +196,10 @@ router.post('/config', (req, res) => {
     db.setConfig('sync', s);
   }
   if ('milestone' in req.body) {
-    db.setConfig('milestone', req.body.milestone);
+    const m = { ...(req.body.milestone || {}) };
+    const existing = db.getConfig('milestone') || {};
+    if (m.password === '••••••••') m.password = existing.password || '';
+    db.setConfig('milestone', m);
     scheduleRefresh(); // le nom de macro peut avoir changé → re-poll Zabbix
   }
   res.json({ ok: true });
@@ -208,6 +213,51 @@ router.post('/config/test', async (req, res) => {
   } catch (e) {
     res.status(400).json({ ok: false, error: e.message });
   }
+});
+
+/* ── CAMÉRA / WebRTC (proxy Milestone) ────────────────────── */
+// Le backend porte le login (token OAuth compte de service) et proxifie la signalisation
+// WebRTC : le navigateur ne reçoit jamais d'identifiants Milestone.
+function msCfg() { return db.getConfig('milestone') || {}; }
+
+// Test d'authentification (compte de service) — utilisé par le bouton des Paramètres.
+router.post('/camera/test', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const existing = db.getConfig('milestone') || {};
+    const cfg = { ...existing, ...body };
+    if (!body.password || body.password === '••••••••') cfg.password = existing.password || '';
+    await milestone.getToken(cfg, true);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
+});
+
+router.post('/camera/session', async (req, res) => {
+  try {
+    const { deviceId, streamId } = req.body || {};
+    if (!deviceId) return res.status(400).json({ error: 'deviceId requis' });
+    res.json(await milestone.createSession(msCfg(), deviceId, streamId));
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+router.patch('/camera/session/:id', async (req, res) => {
+  try { await milestone.sendAnswer(msCfg(), req.params.id, (req.body || {}).answerSDP); res.json({ ok: true }); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+router.post('/camera/session/:id/ice', async (req, res) => {
+  try { await milestone.postIce(msCfg(), req.params.id, (req.body || {}).candidates); res.json({ ok: true }); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+router.get('/camera/session/:id/ice', async (req, res) => {
+  try { res.json((await milestone.getIce(msCfg(), req.params.id)) || { candidates: [] }); }
+  catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+router.delete('/camera/session/:id', async (req, res) => {
+  try { await milestone.closeSession(msCfg(), req.params.id); } catch (_) {}
+  res.json({ ok: true });
 });
 
 /* ── SYNC (Device Assigner → groupes) ─────────────────────── */
