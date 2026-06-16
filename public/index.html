@@ -629,15 +629,14 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
       </div>
       <div id="st-milestone" style="display:none">
         <div class="sps"><div class="spst">Flux vidéo — Milestone XProtect (WebRTC)</div>
-          <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Le flux live s'affiche via WebRTC (API Gateway). Le login est centralisé&nbsp;: le serveur s'authentifie avec un compte de service ; aucun identifiant n'est demandé à l'utilisateur. Nécessite le composant <strong>XProtect API Gateway</strong>.</p>
-          <div class="spf" style="margin-bottom:10px"><div class="spl">URL du serveur <span class="hi">(API Gateway + IDP)</span></div><input class="spi" id="ms-url" type="text" placeholder="https://milestone.exemple.fr"></div>
-          <div class="row2"><div class="spf"><div class="spl">Utilisateur <span class="hi">(AD : DOMAINE\utilisateur)</span></div><input class="spi" id="ms-user" type="text" placeholder="SOLIDAYS\svc-netmap"></div><div class="spf"><div class="spl">Mot de passe</div><input class="spi" id="ms-pass" type="password" placeholder="••••••••"></div></div>
-          <div class="spf" style="max-width:240px;margin-top:8px"><div class="spl">Client ID <span class="hi">(OAuth)</span></div><input class="spi" id="ms-client" type="text" placeholder="VmsClient"></div>
-          <div style="display:flex;gap:10px;align-items:center;margin-top:8px"><button class="mb co" id="ms-test" style="font-size:12px">Tester l'authentification</button><span id="ms-tres" style="font-size:12px;color:var(--text3)"></span></div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Le flux live s'affiche via WebRTC (API Gateway). Le login est centralisé&nbsp;: le serveur s'authentifie avec un <strong>basic user</strong> partagé ; aucun identifiant n'est demandé à l'utilisateur. Chaque caméra remonte l'IP de son serveur Milestone via la macro Zabbix (multi-sites / fédéré géré automatiquement).</p>
+          <div class="row2"><div class="spf"><div class="spl">Basic user</div><input class="spi" id="ms-user" type="text" placeholder="svc-netmap"></div><div class="spf"><div class="spl">Mot de passe</div><input class="spi" id="ms-pass" type="password" placeholder="••••••••"></div></div>
+          <div class="row2" style="margin-top:8px"><div class="spf" style="max-width:200px"><div class="spl">Client ID <span class="hi">(OAuth)</span></div><input class="spi" id="ms-client" type="text" placeholder="GrantValidatorClient"></div><div class="spf" style="max-width:110px"><div class="spl">Protocole</div><select class="spi" id="ms-proto"><option value="https">HTTPS</option><option value="http">HTTP</option></select></div><div class="spf" style="max-width:90px"><div class="spl">Port <span class="hi">(vide=déf.)</span></div><input class="spi" id="ms-port" type="number" placeholder=""></div></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap"><input class="spi" id="ms-testip" type="text" placeholder="IP d'un serveur (test)" style="max-width:200px"><button class="mb co" id="ms-test" type="button" style="font-size:12px">Tester l'authentification</button><span id="ms-tres" style="font-size:12px;color:var(--text3)"></span></div>
         </div>
-        <div class="sps"><div class="spst">Correspondance caméra</div>
-          <p style="font-size:12px;color:var(--text3);margin-bottom:12px">L'identifiant (GUID) de la caméra Milestone est lu depuis une macro Zabbix de l'hôte. Plusieurs flux par caméra&nbsp;: macros numérotées <code>{$MILESTONE_ID}</code>, <code>{$MILESTONE_ID2}</code>, <code>{$MILESTONE_ID3}</code>… (GUID via Ctrl+clic dans le Management Client).</p>
-          <div class="spf" style="max-width:240px"><div class="spl">Macro Zabbix <span class="hi">(de base)</span></div><input class="spi" id="ms-macro" type="text" placeholder="{$MILESTONE_ID}"></div>
+        <div class="sps"><div class="spst">Correspondance caméra <span class="hi">(macros Zabbix)</span></div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Sur chaque hôte caméra&nbsp;: une macro donne l'<strong>IP du serveur</strong> Milestone, une autre l'<strong>identifiant (GUID)</strong> de la caméra. Plusieurs flux&nbsp;: macros ID numérotées <code>{$MILESTONE_ID}</code>, <code>{$MILESTONE_ID2}</code>… (GUID via Ctrl+clic dans le Management Client).</p>
+          <div class="row2"><div class="spf"><div class="spl">Macro ID caméra <span class="hi">(de base)</span></div><input class="spi" id="ms-macro" type="text" placeholder="{$MILESTONE_ID}"></div><div class="spf"><div class="spl">Macro IP serveur</div><input class="spi" id="ms-ipmacro" type="text" placeholder="{$MILESTONE.IP}"></div></div>
         </div>
         <div class="sps"><div class="spst">Réseau <span class="hi">(optionnel — utile hors LAN)</span></div>
           <div class="spf" style="margin-bottom:8px"><div class="spl">Serveur STUN</div><input class="spi" id="ms-stun" type="text" placeholder="stun:stun.l.google.com:19302"></div>
@@ -1331,7 +1330,7 @@ function hDIG(sx,sy){if(!gVis())return null;const h=DSZ()/2+4;for(const g of gro
 const dp=document.getElementById('dpopup');
 let milestoneCfg=null; // {serverUrl, username, macroName, …} — config Milestone (flux WebRTC). serverUrl présent ⇒ activé.
 function DR(l,v,c=''){return`<div class="dpr"><span class="dprl">${l}</span><span class="dprv ${c}">${v}</span></div>`;}
-function showDP(d,sx,sy){clearTimeout(dpHideTimer);const t=TYPES[d.type]||{color:'#666',label:d.type};let h=`<div class="dph"><div class="dpsq" style="background:${t.color}"></div><div><div class="dpnm">${d.name}</div><div class="dpty">${t.label}</div></div></div>`;h+=DR('IP',d.ip||'—');h+=DR('Ping',d.ping?'Actif':'Inactif',d.ping?'ok':'c');if(d.latency!=null)h+=DR('Latence',d.latency+' ms',d.latency>15?'w':'');if(d.signal!=null)h+=DR('Signal',d.signal+' dBm',d.signal<-75?'w':'');if(d.channel!=null)h+=DR('Canal radio',d.channel);if(d.clients!=null)h+=DR('Clients',d.clients);if(d.temp!=null)h+=DR('Température',d.temp+' °C',d.temp>60?'c':d.temp>45?'w':'');if(d.power!=null)h+=DR('Puissance',d.power+' W');if(d.connFailure!=null)h+=DR('Échecs connexion',d.connFailure,d.connFailure>0?'w':'');if(d.ports!=null)h+=DR('Ports UP/Total',`${d.portsUp}/${d.ports}`,d.portsUp<d.ports*.5?'w':'');if(d.resolution)h+=DR('Résolution',d.resolution);if(d.fps!=null)h+=DR('FPS',d.fps+' fps',d.fps<15?'c':'');if(d.uptime)h+=DR('Uptime',d.uptime);if(d.trigger)h+=`<div class="dptg"><div class="tl">⚡ Trigger</div><div class="tm">${d.trigger}</div></div>`;const _dgps=deviceToGps(d);if(_dgps)h+=`<div class="dpr"><span class="dprl">GPS</span><span class="dprv"><a href="${gmapsUrl(_dgps.lat,_dgps.lng)}" target="_blank" style="color:#378ADD;text-decoration:none;font-size:11px">${_dgps.lat.toFixed(5)}, ${_dgps.lng.toFixed(5)} ↗</a></span></div>`;if(d.milestoneIds&&d.milestoneIds.length&&milestoneCfg&&milestoneCfg.serverUrl)h+=`<button class="dp-cam" data-id="${d.id}">📹 Voir le flux${d.milestoneIds.length>1?` (${d.milestoneIds.length})`:''}</button>`;dp.innerHTML=h;let px=sx+16,py=sy-10;if(px+270>wrap.clientWidth)px=sx-270-8;if(py+310>wrap.clientHeight)py=sy-290;if(py<0)py=4;dp.style.left=px+'px';dp.style.top=py+'px';dp.classList.add('v');}
+function showDP(d,sx,sy){clearTimeout(dpHideTimer);const t=TYPES[d.type]||{color:'#666',label:d.type};let h=`<div class="dph"><div class="dpsq" style="background:${t.color}"></div><div><div class="dpnm">${d.name}</div><div class="dpty">${t.label}</div></div></div>`;h+=DR('IP',d.ip||'—');h+=DR('Ping',d.ping?'Actif':'Inactif',d.ping?'ok':'c');if(d.latency!=null)h+=DR('Latence',d.latency+' ms',d.latency>15?'w':'');if(d.signal!=null)h+=DR('Signal',d.signal+' dBm',d.signal<-75?'w':'');if(d.channel!=null)h+=DR('Canal radio',d.channel);if(d.clients!=null)h+=DR('Clients',d.clients);if(d.temp!=null)h+=DR('Température',d.temp+' °C',d.temp>60?'c':d.temp>45?'w':'');if(d.power!=null)h+=DR('Puissance',d.power+' W');if(d.connFailure!=null)h+=DR('Échecs connexion',d.connFailure,d.connFailure>0?'w':'');if(d.ports!=null)h+=DR('Ports UP/Total',`${d.portsUp}/${d.ports}`,d.portsUp<d.ports*.5?'w':'');if(d.resolution)h+=DR('Résolution',d.resolution);if(d.fps!=null)h+=DR('FPS',d.fps+' fps',d.fps<15?'c':'');if(d.uptime)h+=DR('Uptime',d.uptime);if(d.trigger)h+=`<div class="dptg"><div class="tl">⚡ Trigger</div><div class="tm">${d.trigger}</div></div>`;const _dgps=deviceToGps(d);if(_dgps)h+=`<div class="dpr"><span class="dprl">GPS</span><span class="dprv"><a href="${gmapsUrl(_dgps.lat,_dgps.lng)}" target="_blank" style="color:#378ADD;text-decoration:none;font-size:11px">${_dgps.lat.toFixed(5)}, ${_dgps.lng.toFixed(5)} ↗</a></span></div>`;if(d.milestoneIds&&d.milestoneIds.length&&d.milestoneServer&&msEnabled())h+=`<button class="dp-cam" data-id="${d.id}">📹 Voir le flux${d.milestoneIds.length>1?` (${d.milestoneIds.length})`:''}</button>`;dp.innerHTML=h;let px=sx+16,py=sy-10;if(px+270>wrap.clientWidth)px=sx-270-8;if(py+310>wrap.clientHeight)py=sy-290;if(py<0)py=4;dp.style.left=px+'px';dp.style.top=py+'px';dp.classList.add('v');}
 let dpHideTimer=null;
 // Masquage différé : laisse le temps d'amener la souris dans la popup pour cliquer le lien GPS.
 function hideDP(){clearTimeout(dpHideTimer);dpHideTimer=setTimeout(()=>dp.classList.remove('v'),260);}
@@ -1344,13 +1343,15 @@ dp.addEventListener('click',e=>{const b=e.target.closest('.dp-cam');if(!b)return
 /* ── Flux vidéo caméra (Milestone WebRTC) ──────────────────── */
 // Le login est porté par le backend (compte de service) ; on ne fait que de la
 // signalisation WebRTC proxifiée. Le navigateur n'obtient jamais d'identifiants.
-let camIds=[],camPc=null,camSession=null,camPolling=false,camGen=0;
+let camIds=[],camServer='',camPc=null,camSession=null,camPolling=false,camGen=0;
+// Vidéo activée si le basic user est configuré.
+function msEnabled(){return !!(milestoneCfg&&milestoneCfg.username);}
 const camV=()=>document.getElementById('cam-video');
 function camStatus(msg,err){const s=document.getElementById('cam-status');if(!msg){s.classList.add('hide');return;}s.textContent=msg;s.classList.toggle('err',!!err);s.classList.remove('hide');}
 function setActiveTab(i){document.querySelectorAll('#cam-tabs .cam-tab').forEach((b,k)=>b.classList.toggle('on',k===i));}
 async function stopWebRTC(){camPolling=false;if(camPc){try{camPc.close();}catch(e){}camPc=null;}const v=camV();if(v)v.srcObject=null;if(camSession){const sid=camSession;camSession=null;fetch(`${API}/camera/session/${sid}`,{method:'DELETE'}).catch(()=>{});}}
 async function startWebRTC(deviceId){await stopWebRTC();const gen=++camGen;camStatus('Connexion…');try{
-  const sess=await fetch(`${API}/camera/session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId})}).then(r=>r.json());
+  const sess=await fetch(`${API}/camera/session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId,server:camServer})}).then(r=>r.json());
   if(gen!==camGen)return; // un autre flux a été demandé entre-temps
   if(sess.error||!sess.offerSDP)throw new Error(sess.error||'Réponse Milestone invalide');
   camSession=sess.sessionId;
@@ -1369,7 +1370,7 @@ async function pollIce(pc,sid,gen){camPolling=true;for(let n=0;n<40&&camPolling&
   await new Promise(r=>setTimeout(r,700));
 }}
 function showStream(i){if(!camIds[i])return;setActiveTab(i);startWebRTC(camIds[i]);}
-function openCam(d){if(!d.milestoneIds||!d.milestoneIds.length||!(milestoneCfg&&milestoneCfg.serverUrl))return;camIds=d.milestoneIds.slice();document.getElementById('cam-title').textContent=d.name;const tabs=document.getElementById('cam-tabs');tabs.innerHTML=camIds.length>1?camIds.map((_,i)=>`<button class="cam-tab" data-i="${i}">Flux ${i+1}</button>`).join(''):'';tabs.querySelectorAll('.cam-tab').forEach(b=>b.addEventListener('click',()=>showStream(parseInt(b.dataset.i,10))));hideDPNow();document.getElementById('ov-cam').classList.remove('h');showStream(0);}
+function openCam(d){if(!d.milestoneIds||!d.milestoneIds.length||!msEnabled())return;camIds=d.milestoneIds.slice();camServer=d.milestoneServer||'';document.getElementById('cam-title').textContent=d.name;const tabs=document.getElementById('cam-tabs');tabs.innerHTML=camIds.length>1?camIds.map((_,i)=>`<button class="cam-tab" data-i="${i}">Flux ${i+1}</button>`).join(''):'';tabs.querySelectorAll('.cam-tab').forEach(b=>b.addEventListener('click',()=>showStream(parseInt(b.dataset.i,10))));hideDPNow();document.getElementById('ov-cam').classList.remove('h');showStream(0);}
 function closeCam(){document.getElementById('ov-cam').classList.add('h');camGen++;stopWebRTC();camStatus(null);}
 document.getElementById('camX').addEventListener('click',closeCam);
 document.getElementById('ov-cam').addEventListener('click',e=>{if(e.target.id==='ov-cam')closeCam();});
@@ -1720,6 +1721,15 @@ function closeModal(){document.getElementById('ov-group').classList.add('h');}
 document.getElementById('mca').addEventListener('click',closeModal);
 document.getElementById('mco').addEventListener('click',async()=>{const nm=document.getElementById('mn').value.trim()||'Groupe';const ids=[...document.querySelectorAll('#mdv input:checked')].map(i=>i.value);let cx,cy;if(ids.length){const devs=ids.map(id=>devices.find(d=>d.id===id)).filter(Boolean);cx=devs.reduce((s,d)=>s+d.x,0)/devs.length;cy=devs.reduce((s,d)=>s+d.y,0)/devs.length;}else if(newGroupPos){cx=newGroupPos.x;cy=newGroupPos.y;}else{const[rx,ry]=toR(canvas.width/2,canvas.height/2);cx=Math.max(.02,Math.min(.97,rx));cy=Math.max(.02,Math.min(.97,ry));}await aCG(nm,cx,cy,ids);selGrp.clear();groupMode=false;newGroupPos=null;closeModal();});
 
+/* ── Test authentification Milestone (basic user) ──────────── */
+document.getElementById('ms-test').addEventListener('click',async()=>{
+  const res=document.getElementById('ms-tres');
+  const body={ip:document.getElementById('ms-testip').value.trim(),username:document.getElementById('ms-user').value.trim(),password:document.getElementById('ms-pass').value,clientId:document.getElementById('ms-client').value.trim()||'GrantValidatorClient',proto:document.getElementById('ms-proto').value,port:document.getElementById('ms-port').value.trim()};
+  if(!body.ip){res.style.color='var(--crit)';res.textContent='✗ Renseignez l\'IP d\'un serveur';return;}
+  res.style.color='var(--text3)';res.textContent='Authentification…';
+  try{const r=await fetch(`${API}/camera/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());if(r.ok){res.style.color='var(--ok)';res.textContent='✓ Authentifié';}else{res.style.color='var(--crit)';res.textContent=`✗ ${r.error}`;}}catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}
+});
+
 /* ── Settings ──────────────────────────────────────────────── */
 async function openSettings(){
   const cfg=await fetch(`${API}/config`).then(r=>r.json());
@@ -1755,19 +1765,22 @@ async function openSettings(){
   document.getElementById('synckey').value=sc.apiKey||'';
   document.getElementById('syncres').textContent='';
   document.getElementById('syncreport').innerHTML='';
-  // Vidéo / Milestone (WebRTC)
+  // Vidéo / Milestone (WebRTC — basic user global + IP par caméra)
   milestoneCfg=cfg.milestone||null;
   const ms=cfg.milestone||{};
-  document.getElementById('ms-url').value=ms.serverUrl||'';
   document.getElementById('ms-user').value=ms.username||'';
   document.getElementById('ms-pass').value=ms.password||'';
   document.getElementById('ms-client').value=ms.clientId||'';
+  document.getElementById('ms-proto').value=ms.proto||'https';
+  document.getElementById('ms-port').value=ms.port||'';
+  document.getElementById('ms-testip').value='';
+  document.getElementById('ms-tres').textContent='';
   document.getElementById('ms-macro').value=ms.macroName||'';
+  document.getElementById('ms-ipmacro').value=ms.ipMacroName||'';
   document.getElementById('ms-stun').value=ms.stunUrl||'';
   document.getElementById('ms-turn').value=ms.turnUrl||'';
   document.getElementById('ms-turnuser').value=ms.turnUser||'';
   document.getElementById('ms-turnpass').value=ms.turnPass||'';
-  document.getElementById('ms-tres').textContent='';
   buildClrEd();
   triggersData=await fetch(`${API}/triggers`).then(r=>r.json());
   // Ensure all categories have an entry
@@ -1792,12 +1805,11 @@ document.getElementById('icon-scale-num').addEventListener('change',e=>{
 });
 document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display,#st-gps,#st-sync,#st-milestone').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
 document.getElementById('ztest').addEventListener('click',async()=>{const cfg={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value,path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value};const res=document.getElementById('ztres');res.style.color='var(--text3)';res.textContent='Connexion…';try{const r=await fetch(`${API}/config/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}).then(r=>r.json());if(r.ok){res.style.color='var(--ok)';res.textContent=`✓ Zabbix API v${r.version}`;}else{res.style.color='var(--crit)';res.textContent=`✗ ${r.error}`;}}catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}});
-document.getElementById('ms-test').addEventListener('click',async()=>{const cfg={serverUrl:document.getElementById('ms-url').value.trim().replace(/\/+$/,''),username:document.getElementById('ms-user').value.trim(),password:document.getElementById('ms-pass').value,clientId:document.getElementById('ms-client').value.trim()||'VmsClient'};const res=document.getElementById('ms-tres');res.style.color='var(--text3)';res.textContent='Authentification…';try{const r=await fetch(`${API}/camera/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}).then(r=>r.json());if(r.ok){res.style.color='var(--ok)';res.textContent='✓ Authentifié';}else{res.style.color='var(--crit)';res.textContent=`✗ ${r.error}`;}}catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}});
 document.getElementById('spsv').addEventListener('click',async()=>{
   const z={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value||'80',path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value,refresh:parseInt(document.getElementById('zri').value)||30,timeout:parseInt(document.getElementById('zto').value)||10,autoRefresh:document.getElementById('zar').checked};
   const d={labels:document.getElementById('dlbl').checked,halos:document.getElementById('dhalo').checked,grid:document.getElementById('dgrid').checked};
   const sync={url:document.getElementById('syncurl').value.trim(),apiKey:document.getElementById('synckey').value};
-  const milestone={serverUrl:document.getElementById('ms-url').value.trim().replace(/\/+$/,''),username:document.getElementById('ms-user').value.trim(),password:document.getElementById('ms-pass').value,clientId:document.getElementById('ms-client').value.trim()||'VmsClient',macroName:document.getElementById('ms-macro').value.trim()||'{$MILESTONE_ID}',stunUrl:document.getElementById('ms-stun').value.trim(),turnUrl:document.getElementById('ms-turn').value.trim(),turnUser:document.getElementById('ms-turnuser').value.trim(),turnPass:document.getElementById('ms-turnpass').value};
+  const milestone={username:document.getElementById('ms-user').value.trim(),password:document.getElementById('ms-pass').value,clientId:document.getElementById('ms-client').value.trim()||'GrantValidatorClient',proto:document.getElementById('ms-proto').value,port:document.getElementById('ms-port').value.trim(),macroName:document.getElementById('ms-macro').value.trim()||'{$MILESTONE_ID}',ipMacroName:document.getElementById('ms-ipmacro').value.trim()||'{$MILESTONE.IP}',stunUrl:document.getElementById('ms-stun').value.trim(),turnUrl:document.getElementById('ms-turn').value.trim(),turnUser:document.getElementById('ms-turnuser').value.trim(),turnPass:document.getElementById('ms-turnpass').value};
   milestoneCfg=milestone;
   await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zabbix:z,display:d,sync,milestone})});
   // Save category colors

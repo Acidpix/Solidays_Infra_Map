@@ -30,8 +30,8 @@ async function fetchDevices() {
   }
   try {
     const categories = db.getAllCategories();
-    const milestoneMacro = (db.getConfig('milestone') || {}).macroName || '{$MILESTONE_ID}';
-    const devices = await zabbix.getHosts(cfg, categories, milestoneMacro);
+    const ms = db.getConfig('milestone') || {};
+    const devices = await zabbix.getHosts(cfg, categories, ms.macroName || '{$MILESTONE_ID}', ms.ipMacroName || '{$MILESTONE.IP}');
     evaluateAll(devices);
     applyPositions(devices);
     devicesCache = devices;
@@ -174,7 +174,7 @@ router.get('/config', (req, res) => {
   const milestoneCfg = db.getConfig('milestone') || null;
   const safe = { ...zabbixCfg, pass: zabbixCfg.pass ? '••••••••' : '' };
   const safeSync = syncCfg ? { ...syncCfg, apiKey: syncCfg.apiKey ? '••••••••' : '' } : null;
-  const safeMs = milestoneCfg ? { ...milestoneCfg, password: milestoneCfg.password ? '••••••••' : '' } : null;
+  const safeMs = maskMilestone(milestoneCfg);
   res.json({ zabbix: safe, display: displayCfg, gps: gpsCfg, mapview: mapviewCfg, sync: safeSync, milestone: safeMs });
 });
 
@@ -196,14 +196,53 @@ router.post('/config', (req, res) => {
     db.setConfig('sync', s);
   }
   if ('milestone' in req.body) {
-    const m = { ...(req.body.milestone || {}) };
-    const existing = db.getConfig('milestone') || {};
-    if (m.password === '••••••••') m.password = existing.password || '';
-    db.setConfig('milestone', m);
-    scheduleRefresh(); // le nom de macro peut avoir changé → re-poll Zabbix
+    db.setConfig('milestone', mergeMilestoneSecrets(req.body.milestone || {}, db.getConfig('milestone') || {}));
+    scheduleRefresh(); // les noms de macro peuvent avoir changé → re-poll Zabbix
   }
   res.json({ ok: true });
 });
+
+/* ── Helpers config Milestone (basic user global + IP par caméra) ── */
+const MASK = '••••••••';
+
+// Masque le mot de passe (identifiants globaux) avant envoi au client.
+function maskMilestone(m) {
+  if (!m) return null;
+  return { ...m, password: m.password ? MASK : '' };
+}
+
+// Restaure le mot de passe masqué à partir de l'existant.
+function mergeMilestoneSecrets(incoming, existing) {
+  const m = { ...incoming };
+  if (m.password === MASK) m.password = existing.password || '';
+  return m;
+}
+
+// Construit l'URL d'un serveur Milestone depuis l'IP remontée par la macro.
+function serverUrlFromIp(ip, m) {
+  if (!ip) return m.serverUrl || '';
+  if (/^https?:\/\//i.test(ip)) return ip.replace(/\/+$/, '');
+  const proto = m.proto || 'https';
+  const port = m.port ? `:${m.port}` : '';
+  return `${proto}://${ip}${port}`;
+}
+
+// Profil de connexion pour une caméra : URL dérivée de l'IP + identifiants globaux + ICE.
+function serverProfile(ip) {
+  const m = db.getConfig('milestone') || {};
+  return {
+    serverUrl: serverUrlFromIp(ip, m),
+    username: m.username, password: m.password, clientId: m.clientId,
+    stunUrl: m.stunUrl, turnUrl: m.turnUrl, turnUser: m.turnUser, turnPass: m.turnPass,
+  };
+}
+
+// Anti-SSRF : on n'accepte de se connecter qu'aux IP de serveur réellement remontées par Zabbix.
+function isAllowedServer(ip) {
+  if (!ip) return true; // pas d'IP → fallback config (serverUrl global éventuel)
+  for (const d of (devicesCache || [])) if (d.milestoneServer === ip) return true;
+  return false;
+}
 
 router.post('/config/test', async (req, res) => {
   try {
@@ -218,15 +257,21 @@ router.post('/config/test', async (req, res) => {
 /* ── CAMÉRA / WebRTC (proxy Milestone) ────────────────────── */
 // Le backend porte le login (token OAuth compte de service) et proxifie la signalisation
 // WebRTC : le navigateur ne reçoit jamais d'identifiants Milestone.
-function msCfg() { return db.getConfig('milestone') || {}; }
+// On mémorise le serveur de chaque session pour router les appels suivants (multi-sites).
+const sessionServers = new Map(); // sessionId -> serverKey
 
-// Test d'authentification (compte de service) — utilisé par le bouton des Paramètres.
+// Test d'authentification (basic user global) contre l'IP d'un serveur — bouton Paramètres.
 router.post('/camera/test', async (req, res) => {
   try {
     const body = req.body || {};
-    const existing = db.getConfig('milestone') || {};
-    const cfg = { ...existing, ...body };
-    if (!body.password || body.password === '••••••••') cfg.password = existing.password || '';
+    const m = db.getConfig('milestone') || {};
+    const cfg = {
+      serverUrl: serverUrlFromIp(body.ip, { ...m, proto: body.proto || m.proto, port: body.port != null ? body.port : m.port }),
+      username: body.username != null ? body.username : m.username,
+      password: (!body.password || body.password === MASK) ? (m.password || '') : body.password,
+      clientId: body.clientId || m.clientId,
+    };
+    if (!cfg.serverUrl) return res.status(400).json({ ok: false, error: 'IP serveur requise' });
     await milestone.getToken(cfg, true);
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ ok: false, error: e.message }); }
@@ -234,29 +279,33 @@ router.post('/camera/test', async (req, res) => {
 
 router.post('/camera/session', async (req, res) => {
   try {
-    const { deviceId, streamId } = req.body || {};
+    const { deviceId, streamId, server } = req.body || {};
     if (!deviceId) return res.status(400).json({ error: 'deviceId requis' });
-    res.json(await milestone.createSession(msCfg(), deviceId, streamId));
+    if (!isAllowedServer(server)) return res.status(400).json({ error: 'serveur Milestone non reconnu' });
+    const r = await milestone.createSession(serverProfile(server), deviceId, streamId);
+    if (r && r.sessionId) sessionServers.set(r.sessionId, server || '');
+    res.json(r);
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 router.patch('/camera/session/:id', async (req, res) => {
-  try { await milestone.sendAnswer(msCfg(), req.params.id, (req.body || {}).answerSDP); res.json({ ok: true }); }
+  try { await milestone.sendAnswer(serverProfile(sessionServers.get(req.params.id)), req.params.id, (req.body || {}).answerSDP); res.json({ ok: true }); }
   catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 router.post('/camera/session/:id/ice', async (req, res) => {
-  try { await milestone.postIce(msCfg(), req.params.id, (req.body || {}).candidates); res.json({ ok: true }); }
+  try { await milestone.postIce(serverProfile(sessionServers.get(req.params.id)), req.params.id, (req.body || {}).candidates); res.json({ ok: true }); }
   catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 router.get('/camera/session/:id/ice', async (req, res) => {
-  try { res.json((await milestone.getIce(msCfg(), req.params.id)) || { candidates: [] }); }
+  try { res.json((await milestone.getIce(serverProfile(sessionServers.get(req.params.id)), req.params.id)) || { candidates: [] }); }
   catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 router.delete('/camera/session/:id', async (req, res) => {
-  try { await milestone.closeSession(msCfg(), req.params.id); } catch (_) {}
+  try { await milestone.closeSession(serverProfile(sessionServers.get(req.params.id)), req.params.id); } catch (_) {}
+  sessionServers.delete(req.params.id);
   res.json({ ok: true });
 });
 

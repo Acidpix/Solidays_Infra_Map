@@ -96,7 +96,7 @@ function formatUptime(seconds) {
   return `${d}j ${h}h`;
 }
 
-async function getHosts(cfg, categories = [], milestoneMacro = '{$MILESTONE_ID}') {
+async function getHosts(cfg, categories = [], milestoneMacro = '{$MILESTONE_ID}', milestoneServerMacro = '{$MILESTONE.IP}') {
   const url = buildUrl(cfg);
   const auth = await login(cfg);
 
@@ -181,6 +181,10 @@ async function getHosts(cfg, categories = [], milestoneMacro = '{$MILESTONE_ID}'
       .filter(m => m && m.v)
       .sort((a, b) => a.n - b.n)
       .map(m => m.v);
+    // Serveur Milestone de la caméra (architecture fédérée / multi-sites) : IP remontée
+    // par la macro {$MILESTONE.IP}. Le backend en dérive l'URL (proto/port globaux).
+    const srvMacro = (host.macros || []).find(m => m.macro === milestoneServerMacro);
+    const milestoneServer = srvMacro ? (srvMacro.value || '').trim() : '';
 
     return {
       id: `zbx_${host.hostid}`,
@@ -191,6 +195,7 @@ async function getHosts(cfg, categories = [], milestoneMacro = '{$MILESTONE_ID}'
       ip: ipByHost[host.hostid] || '',
       ...metrics,
       milestoneIds,
+      milestoneServer,
       status: 'ok',
     };
   });

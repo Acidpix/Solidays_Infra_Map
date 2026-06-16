@@ -16,9 +16,10 @@ Application web de cartographie d'infrastructure réseau pour événements (fest
 ```
 public/index.html     # SPA complète — CSS + HTML + JS dans un seul fichier (~1600 lignes)
 server/index.js       # Bootstrap Express, HTTP + HTTPS optionnel
-server/routes.js      # 27 endpoints REST (/api/*)
+server/routes.js      # Endpoints REST (/api/*) : devices, config, sync, caméra/WebRTC…
 server/db.js          # SQLite init, prepared statements, helpers
-server/zabbix.js      # Client Zabbix JSON-RPC (auth, hosts, catégories)
+server/zabbix.js      # Client Zabbix JSON-RPC (auth, hosts, catégories, macros)
+server/milestone.js   # Client Milestone XProtect (OAuth IDP + signalisation WebRTC)
 server/triggers.js    # Moteur d'évaluation des alertes
 install.sh            # Installation Debian LXC (Node, npm, systemd, SSL)
 update.sh             # Mise à jour sans réinstaller Node
@@ -82,6 +83,12 @@ GET  /api/alerts               Historique alertes (filtres: severity, active, de
 GET  /api/map/background       Image de fond (base64)
 POST /api/map/background       Upload image de fond
 POST /api/sync                 Synchro Device Assigner : 1 groupe par point + matériel relié
+POST /api/camera/test          Teste l'auth Milestone (basic user) contre une IP serveur
+POST /api/camera/session       Crée une session WebRTC {deviceId, server(IP), streamId}
+PATCH/api/camera/session/:id   Transmet l'answerSDP du navigateur
+POST /api/camera/session/:id/ice   Pousse les candidats ICE du navigateur
+GET  /api/camera/session/:id/ice   Récupère les candidats ICE du serveur (polling)
+DEL  /api/camera/session/:id   Ferme la session (best-effort) + nettoie le mapping
 ```
 
 ### Synchronisation Device Assigner
@@ -94,6 +101,56 @@ stocké dans `groups.source_id` pour rendre la synchro idempotente. Config dans 
 (`{url, apiKey}`), réglée dans l'onglet **Synchronisation** des Paramètres. Les groupes
 synchronisés s'affichent sur la carte (grille auto) **et** dans la sidebar (section « Points »,
 repliable via triangle). Retour : `{groupsCreated, groupsUpdated, devicesMatched, unmatched[]}`.
+
+### Flux vidéo caméra (Milestone XProtect, WebRTC)
+
+Sur une caméra, la popup `showDP` affiche un bouton **📹 Voir le flux** qui ouvre un modal
+(`#ov-cam`) jouant le **live WebRTC** dans une balise `<video>`. Le login est **centralisé
+côté serveur** (un *basic user* Milestone partagé) : le navigateur n'obtient jamais
+d'identifiants ni de token — `server/index.js`/`routes.js` **proxifient** toute la signalisation.
+
+**Authentification (`server/milestone.js`)** : `getToken()` fait un OAuth `grant_type=password`
+sur `POST {serverUrl}/IDP/connect/token` (champ `client_id`, défaut `GrantValidatorClient`).
+L'IDP est le service d'identité Milestone (sur le Management Server). Token mis en cache **par
+serveur** (clé `serverUrl|username|clientId`). Agent HTTPS tolérant aux certificats auto-signés.
+
+**Signalisation WebRTC** : `createSession` → `POST {serverUrl}/API/REST/v1/WebRTC/Session`
+(`{deviceId, includeAudio, iceServers}`) renvoie `{sessionId, offerSDP}` ; le navigateur répond
+via `PATCH …/Session/{id}` (`answerSDP`) et échange les candidats via `…/IceCandidates/{id}`
+(POST + GET en polling). Le serveur Milestone est l'**offerer**, le navigateur l'**answerer**.
+
+**Multi-sites / fédéré** : chaque caméra remonte l'**IP de son serveur** Milestone via une macro
+Zabbix `{$MILESTONE.IP}` (→ `device.milestoneServer`). Le backend dérive l'URL
+(`serverUrlFromIp` : `proto`/`port` globaux, défaut `https`/443) et y applique le basic user
+**global**. `sessionServers` (Map `sessionId→IP`) route les appels suivants (answer/ICE/close)
+vers le **même** serveur. **Anti-SSRF** : `isAllowedServer()` n'autorise que les IP réellement
+remontées par Zabbix (présentes dans `devicesCache`).
+
+**Macros Zabbix par hôte caméra** (lues via `selectMacros` dans `getHosts`) :
+
+| Macro | Exemple | Rôle |
+|-------|---------|------|
+| `{$MILESTONE.IP}` | `10.0.0.5` | IP du serveur Milestone de la caméra → `device.milestoneServer` |
+| `{$MILESTONE_ID}` | `<GUID>` | GUID caméra, flux 1 |
+| `{$MILESTONE_ID2}`, `…ID3`… | `<GUID>` | flux supplémentaires (modal multi-onglets « Flux N ») |
+
+Les GUID sont collectés (préfixe + suffixe numérique, base = 1) dans `device.milestoneIds[]`
+(trié, valeurs vides filtrées). Les noms de macros sont configurables.
+
+**Config** `config.milestone` = `{username, password, clientId, proto, port, macroName,
+ipMacroName, stunUrl, turnUrl, turnUser, turnPass}` — onglet **Vidéo** des Paramètres.
+Le `password` est masqué (`••••••••`) à l'envoi et restauré côté serveur s'il n'a pas changé
+(même convention que Zabbix/sync). STUN/TURN optionnels (inutiles en LAN).
+
+**Frontend** (`index.html`) : `openCam(d)` → `startWebRTC(deviceId)` (RTCPeerConnection,
+`server=camServer`=IP), `showStream(i)` bascule de flux (nouvelle session par flux), `closeCam()`
+ferme + DELETE la session. `milestoneCfg` (chargé au boot et à l'ouverture des Paramètres) ;
+`msEnabled()` = basic user configuré. Bouton affiché si `milestoneIds.length` **et**
+`milestoneServer` **et** `msEnabled()`.
+
+> Limite : l'iframe du Web Client a été abandonnée (pas de login serveur possible, OIDC).
+> Le WebRTC requiert le composant **XProtect API Gateway** installé et joignable sur `{IP}/API`,
+> avec l'IDP sur `{IP}/IDP`. Le *basic user* doit avoir un rôle donnant accès aux caméras.
 
 ### Métriques équipements (Zabbix)
 

@@ -20,22 +20,23 @@ const https = require('https');
 const insecureAgent = new https.Agent({ rejectUnauthorized: false });
 function agentFor(url) { return url.startsWith('https') ? insecureAgent : undefined; }
 
-// Cache du token (le compte de service est partagé pour tous les utilisateurs).
-let _tok = null; // { access_token, exp, key }
+// Cache des tokens, un par profil serveur (clé = serverUrl|username|clientId).
+// Plusieurs serveurs Milestone (architecture fédérée / multi-sites) cohabitent.
+const _toks = new Map(); // key -> { access_token, exp }
 
 function root(cfg) { return String(cfg.serverUrl || '').replace(/\/+$/, ''); }
-function cfgKey(cfg) { return `${root(cfg)}|${cfg.username}|${cfg.clientId || 'VmsClient'}`; }
+function cfgKey(cfg) { return `${root(cfg)}|${cfg.username}|${cfg.clientId || 'GrantValidatorClient'}`; }
 
 // force=true : ignore le cache (et ne le pollue pas) — pour le test d'authentification.
 async function getToken(cfg, force = false) {
   if (!cfg || !cfg.serverUrl) throw new Error('Milestone non configuré (URL serveur manquante)');
   const key = cfgKey(cfg);
-  if (!force && _tok && _tok.key === key && Date.now() < _tok.exp - 60000) return _tok.access_token;
+  if (!force) { const c = _toks.get(key); if (c && Date.now() < c.exp - 60000) return c.access_token; }
 
   const url = root(cfg) + '/IDP/connect/token';
   const body = new URLSearchParams({
     grant_type: 'password',
-    client_id: cfg.clientId || 'VmsClient',
+    client_id: cfg.clientId || 'GrantValidatorClient',
     username: cfg.username || '',
     password: cfg.password || '',
   });
@@ -51,7 +52,7 @@ async function getToken(cfg, force = false) {
   if (!res.ok || !j.access_token) {
     throw new Error(`Authentification Milestone échouée (HTTP ${res.status}): ${j.error_description || j.error || text.slice(0, 150)}`);
   }
-  if (!force) _tok = { access_token: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000, key };
+  if (!force) _toks.set(key, { access_token: j.access_token, exp: Date.now() + (j.expires_in || 3600) * 1000 });
   return j.access_token;
 }
 
