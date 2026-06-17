@@ -160,6 +160,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe 
 .cam-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:#cfd6e0;font-size:13px;background:rgba(0,0,0,.35);pointer-events:none}
 .cam-status.err{color:#ff9a9a}
 .cam-status.hide{display:none}
+.cam-codec{font-size:11px;font-weight:600;letter-spacing:.4px;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.08);border:1px solid var(--border);color:#cfd6e0;white-space:nowrap}
+.cam-codec.hide{display:none}
 @media(max-width:640px){.cam-box{width:100vw;height:100vh;border-radius:0}.cam-title{display:none}}
 /* Group modal */
 .mo{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:20px 22px;width:340px}
@@ -658,6 +660,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
   <div class="cam-box">
     <div class="cam-head">
       <div class="cam-title" id="cam-title">Caméra</div>
+      <span class="cam-codec hide" id="cam-codec"></span>
       <div class="cam-tabs" id="cam-tabs"></div>
       <button class="spX" id="camX">✕</button>
     </div>
@@ -1367,10 +1370,12 @@ function videoCodecsFromSdp(sdp){const lines=String(sdp||'').split(/\r?\n/);let 
 // Le navigateur sait-il décoder l'un de ces codecs ? (getCapabilities inconnu ⇒ on tente quand même)
 function browserSupportsAny(names){let caps;try{caps=RTCRtpReceiver.getCapabilities&&RTCRtpReceiver.getCapabilities('video');}catch(_){return true;}if(!caps||!caps.codecs)return true;const sup=caps.codecs.map(c=>(c.mimeType||'').toUpperCase());return names.some(n=>sup.indexOf('VIDEO/'+n)>=0);}
 function camStatus(msg,err){const s=document.getElementById('cam-status');if(!msg){s.classList.add('hide');return;}s.textContent=msg;s.classList.toggle('err',!!err);s.classList.remove('hide');}
+// Badge codec dans l'en-tête (ex. « H265 · image », « H264 · WebRTC »).
+function camCodec(txt){const c=document.getElementById('cam-codec');if(!c)return;if(!txt){c.classList.add('hide');c.textContent='';return;}c.textContent=txt;c.classList.remove('hide');}
 function setActiveTab(i){document.querySelectorAll('#cam-tabs .cam-tab').forEach((b,k)=>b.classList.toggle('on',k===i));}
 // Mode image (fallback H265) : on poll des snapshots JPEG dans une <img> au lieu de la <video> WebRTC.
 function stopJpeg(){if(camImgTimer){clearTimeout(camImgTimer);camImgTimer=null;}const im=document.getElementById('cam-img');if(im){im.style.display='none';if(im.src&&im.src.startsWith('blob:'))URL.revokeObjectURL(im.src);im.src='';}}
-async function stopWebRTC(){camPolling=false;stopJpeg();if(camPc){try{camPc.close();}catch(e){}camPc=null;}const v=camV();if(v){v.srcObject=null;v.style.display='';}if(camSession){const sid=camSession;camSession=null;fetch(`${API}/camera/session/${sid}`,{method:'DELETE'}).catch(()=>{});}}
+async function stopWebRTC(){camPolling=false;camCodec('');stopJpeg();if(camPc){try{camPc.close();}catch(e){}camPc=null;}const v=camV();if(v){v.srcObject=null;v.style.display='';}if(camSession){const sid=camSession;camSession=null;fetch(`${API}/camera/session/${sid}`,{method:'DELETE'}).catch(()=>{});}}
 // Le serveur transcode des JPEG (codec source quelconque, H264/H265) → le navigateur n'a aucun codec à gérer.
 async function startJpeg(deviceId,gen){if(gen!==camGen)return;
   // Ferme le peer WebRTC en échec mais garde le modal ouvert.
@@ -1400,12 +1405,14 @@ async function startWebRTC(deviceId){await stopWebRTC();const gen=++camGen;camSt
   // Détection codec à la source : on lit ce que Milestone PROPOSE dans l'offre SDP. Si le navigateur
   // ne sait décoder aucun des codecs offerts (typiquement H265 sur Chrome/Edge) → mode image direct.
   const offered=videoCodecsFromSdp((parseSdp(sess.offerSDP)||{}).sdp);
-  if(offered.length&&!browserSupportsAny(offered)){console.warn('[cam] codec(s) offert(s) non supporté(s) par le navigateur :',offered.join(','),'→ mode image');return startJpeg(deviceId,gen);}
+  const codecLbl=offered.join('/')||'?';console.log('[cam] codec(s) offert(s) par Milestone :',codecLbl);
+  if(offered.length&&!browserSupportsAny(offered)){console.warn('[cam] codec non décodable par le navigateur → mode image');camCodec(codecLbl+' · image');return startJpeg(deviceId,gen);}
+  camCodec(codecLbl+' · WebRTC');
   const pc=new RTCPeerConnection({iceServers:sess.iceServers||[]});camPc=pc;
   // Filet de sécurité : si malgré tout aucune image ne JOUE après le délai configuré (codec mal
   // détecté, ou ICE impossible), on bascule quand même sur des snapshots JPEG (HTTP, sans codec).
   let frameSeen=false;const fbMs=(milestoneCfg&&+milestoneCfg.jpegFallbackMs)||2000;
-  const fbTimer=setTimeout(()=>{if(gen===camGen&&!frameSeen)startJpeg(deviceId,gen);},fbMs);
+  const fbTimer=setTimeout(()=>{if(gen===camGen&&!frameSeen){camCodec(codecLbl+' · image');startJpeg(deviceId,gen);}},fbMs);
   // Les candidats ICE locaux ne sont poussés qu'APRÈS l'envoi de l'answer : tant que Milestone n'a
   // pas reçu l'answer, sa session n'accepte pas les candidats et les jette (ICE qui tourne dans le vide).
   let answerSent=false;const iceQueue=[];
