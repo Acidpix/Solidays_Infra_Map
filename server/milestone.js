@@ -104,7 +104,12 @@ async function createSession(cfg, deviceId, streamId) {
 
 function sendAnswer(cfg, sessionId, answerSDP) { return api(cfg, 'PATCH', `/Session/${sessionId}`, { answerSDP }); }
 function postIce(cfg, sessionId, candidates) { return api(cfg, 'POST', `/IceCandidates/${sessionId}`, { candidates: candidates || [] }); }
-function getIce(cfg, sessionId) { return api(cfg, 'GET', `/IceCandidates/${sessionId}`); }
+async function getIce(cfg, sessionId) {
+  const j = await api(cfg, 'GET', `/IceCandidates/${sessionId}`);
+  const n = (j && Array.isArray(j.candidates)) ? j.candidates.length : 0;
+  if (n) console.log(`[Milestone] GET /IceCandidates/${sessionId} → ${n} candidat(s) serveur`);
+  return j;
+}
 async function closeSession(cfg, sessionId) { try { return await api(cfg, 'DELETE', `/Session/${sessionId}`); } catch { return null; } }
 
 module.exports = { getToken, createSession, sendAnswer, postIce, getIce, closeSession };

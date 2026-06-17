@@ -1349,7 +1349,7 @@ function msEnabled(){return !!(milestoneCfg&&milestoneCfg.username);}
 const camV=()=>document.getElementById('cam-video');
 // Milestone sérialise l'offre SDP et les candidats ICE en chaînes JSON ({type,sdp} / RTCIceCandidateInit).
 function parseSdp(v){if(v&&typeof v==='object')return v;try{return JSON.parse(v);}catch(_){return{type:'offer',sdp:String(v)};}}
-function parseIce(c){if(c&&typeof c==='object')return c;try{return JSON.parse(c);}catch(_){return null;}}
+function parseIce(c){if(c&&typeof c==='object')return c;if(typeof c==='string'){const s=c.trim();if(s.charAt(0)==='{'){try{return JSON.parse(s);}catch(_){return null;}}if(s.indexOf('candidate:')>=0)return{candidate:s.replace(/^a=/,''),sdpMLineIndex:0};}return null;}
 function camStatus(msg,err){const s=document.getElementById('cam-status');if(!msg){s.classList.add('hide');return;}s.textContent=msg;s.classList.toggle('err',!!err);s.classList.remove('hide');}
 function setActiveTab(i){document.querySelectorAll('#cam-tabs .cam-tab').forEach((b,k)=>b.classList.toggle('on',k===i));}
 async function stopWebRTC(){camPolling=false;if(camPc){try{camPc.close();}catch(e){}camPc=null;}const v=camV();if(v)v.srcObject=null;if(camSession){const sid=camSession;camSession=null;fetch(`${API}/camera/session/${sid}`,{method:'DELETE'}).catch(()=>{});}}
@@ -1359,16 +1359,21 @@ async function startWebRTC(deviceId){await stopWebRTC();const gen=++camGen;camSt
   if(sess.error||!sess.offerSDP)throw new Error(sess.error||'Réponse Milestone invalide');
   camSession=sess.sessionId;
   const pc=new RTCPeerConnection({iceServers:sess.iceServers||[]});camPc=pc;
+  // Les candidats ICE locaux ne sont poussés qu'APRÈS l'envoi de l'answer : tant que Milestone n'a
+  // pas reçu l'answer, sa session n'accepte pas les candidats et les jette (ICE qui tourne dans le vide).
+  let answerSent=false;const iceQueue=[];
+  const flushIce=c=>{if(!camSession)return;console.log('[cam] → ICE local',c.candidate);fetch(`${API}/camera/session/${camSession}/ice`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidates:[JSON.stringify(c)]})}).catch(()=>{});};
   pc.ontrack=e=>{if(gen!==camGen)return;console.log('[cam] ontrack',e.track&&e.track.kind);camV().srcObject=e.streams[0];const v=camV();v.onplaying=()=>{if(gen===camGen)camStatus(null);};if(v.play)v.play().catch(()=>{});};
-  pc.onicecandidate=e=>{if(e.candidate&&camSession){console.log('[cam] → ICE local',e.candidate.candidate);fetch(`${API}/camera/session/${camSession}/ice`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidates:[JSON.stringify(e.candidate.toJSON())]})}).catch(()=>{});}};
-  pc.oniceconnectionstatechange=()=>{if(gen!==camGen)return;const st=pc.iceConnectionState;console.log('[cam] iceConnectionState',st);if(st==='checking')camStatus('Négociation réseau (ICE)…');else if(st==='connected'||st==='completed')camStatus('Réception du flux…');else if(st==='failed')camStatus('Connexion ICE échouée — réseau/NAT non franchissable entre le navigateur et la caméra (TURN requis ?)',true);else if(st==='disconnected')camStatus('Connexion interrompue',true);};
+  pc.onicecandidate=e=>{if(!e.candidate)return;const c=e.candidate.toJSON();if(answerSent)flushIce(c);else iceQueue.push(c);};
+  pc.oniceconnectionstatechange=()=>{if(gen!==camGen)return;const st=pc.iceConnectionState;console.log('[cam] iceConnectionState',st);if(st==='checking')camStatus('Négociation réseau (ICE)…');else if(st==='connected'||st==='completed')camStatus('Réception du flux…');else if(st==='failed')camStatus('Connexion ICE échouée — aucun chemin réseau entre le navigateur et la caméra/serveur (TURN requis ?)',true);else if(st==='disconnected')camStatus('Connexion réseau perdue — tentative de reconnexion…',true);};
   await pc.setRemoteDescription(parseSdp(sess.offerSDP));
   const ans=await pc.createAnswer();await pc.setLocalDescription(ans);
   await fetch(`${API}/camera/session/${camSession}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({answerSDP:JSON.stringify(pc.localDescription)})});
+  answerSent=true;iceQueue.splice(0).forEach(flushIce); // answer transmis → on peut envoyer les candidats bufferisés
   pollIce(pc,camSession,gen);
 }catch(e){if(gen===camGen)camStatus('Erreur : '+e.message,true);}}
 async function pollIce(pc,sid,gen){camPolling=true;for(let n=0;n<40&&camPolling&&gen===camGen&&camSession===sid;n++){
-  try{const r=await fetch(`${API}/camera/session/${sid}/ice`).then(r=>r.json());for(const c of (r.candidates||[])){const ic=parseIce(c);if(ic)try{await pc.addIceCandidate(ic);}catch(e){}}}catch(e){}
+  try{const r=await fetch(`${API}/camera/session/${sid}/ice`).then(r=>r.json());const cands=r.candidates||[];if(cands.length)console.log(`[cam] ← ${cands.length} candidat(s) ICE distant(s)`);for(const c of cands){const ic=parseIce(c);if(!ic){console.warn('[cam] candidat ICE distant ignoré (format non reconnu)',c);continue;}try{await pc.addIceCandidate(ic);}catch(e){console.warn('[cam] addIceCandidate a échoué',e.message,ic);}}}catch(e){}
   if(pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed')break;
   await new Promise(r=>setTimeout(r,700));
 }}
