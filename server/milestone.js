@@ -63,10 +63,18 @@ async function api(cfg, method, path, jsonBody) {
   const url = apiBase(cfg) + path;
   const opt = { method, headers: { Authorization: `Bearer ${token}` }, agent: agentFor(url), timeout: 15000 };
   if (jsonBody !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(jsonBody); }
+  if (jsonBody !== undefined && method === 'POST' && path === '/Session') {
+    console.log(`[Milestone] POST /Session deviceId=${jsonBody.deviceId} streamId=${jsonBody.streamId || '(défaut)'} url=${url}`);
+  }
   const res = await fetch(url, opt);
   const text = await res.text();
   let j = null; if (text) { try { j = JSON.parse(text); } catch { /* corps non-JSON toléré (PATCH/POST vides) */ } }
-  if (!res.ok) throw new Error(`Milestone WebRTC ${method} ${path} → HTTP ${res.status}: ${(j && (j.error || j.message)) || text.slice(0, 150)}`);
+  if (!res.ok) {
+    // L'erreur Milestone est souvent une AggregateException dont la cause racine est en fin de texte.
+    console.error(`[Milestone] ${method} ${path} → HTTP ${res.status} : ${text}`);
+    const detail = (j && (j.error_description || j.error || j.message)) || text;
+    throw new Error(`Milestone WebRTC ${method} ${path} → HTTP ${res.status}: ${String(detail).slice(0, 500)}`);
+  }
   return j;
 }
 
