@@ -309,6 +309,21 @@ router.delete('/camera/session/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Snapshot JPEG live (fallback H265) : le serveur transcode, le navigateur n'a aucun codec à décoder.
+router.get('/camera/snapshot/:deviceId', async (req, res) => {
+  try {
+    const { deviceId } = req.params;
+    const server = req.query.server || '';
+    if (!deviceId) return res.status(400).send('deviceId requis');
+    if (!isAllowedServer(server)) return res.status(400).send('serveur Milestone non reconnu');
+    const w = parseInt(req.query.w, 10) || 0, h = parseInt(req.query.h, 10) || 0;
+    const { buffer, contentType } = await milestone.getSnapshot(serverProfile(server), deviceId, w, h);
+    res.set('Content-Type', contentType);
+    res.set('Cache-Control', 'no-store');
+    res.send(buffer);
+  } catch (e) { res.status(502).send(e.message); }
+});
+
 /* ── SYNC (Device Assigner → groupes) ─────────────────────── */
 // Normalise un nom pour la correspondance approximative (maj, sans séparateurs)
 function normName(s) { return String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }

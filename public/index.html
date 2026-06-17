@@ -156,7 +156,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe 
 .cam-tabs .cam-tab{padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text2,#aab);font-size:12px;cursor:pointer}
 .cam-tabs .cam-tab.on{background:#378ADD;border-color:#378ADD;color:#fff}
 .cam-stage{position:relative;flex:1;background:#000;display:flex}
-.cam-stage video{width:100%;height:100%;object-fit:contain;background:#000}
+.cam-stage video,.cam-stage img{width:100%;height:100%;object-fit:contain;background:#000}
 .cam-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:#cfd6e0;font-size:13px;background:rgba(0,0,0,.35);pointer-events:none}
 .cam-status.err{color:#ff9a9a}
 .cam-status.hide{display:none}
@@ -643,6 +643,10 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
           <div class="spf" style="margin-bottom:8px"><div class="spl">Serveur TURN</div><input class="spi" id="ms-turn" type="text" placeholder="turn:turn.exemple.fr:3478"></div>
           <div class="row2"><div class="spf"><div class="spl">TURN utilisateur</div><input class="spi" id="ms-turnuser" type="text" placeholder=""></div><div class="spf"><div class="spl">TURN mot de passe</div><input class="spi" id="ms-turnpass" type="password" placeholder=""></div></div>
         </div>
+        <div class="sps"><div class="spst">Mode image <span class="hi">(fallback H265)</span></div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Si le navigateur ne décode pas le flux (codec <strong>H.265</strong> non supporté par Chrome/Edge), bascule automatiquement sur des images JPEG transcodées par le serveur Milestone. Plus de FPS = plus fluide mais plus de charge CPU sur le Recording Server.</p>
+          <div class="row2"><div class="spf"><div class="spl">Délai avant bascule <span class="hi">(ms)</span></div><input class="spi" id="ms-jpegdelay" type="number" min="500" step="100" placeholder="2000"></div><div class="spf"><div class="spl">Images par seconde</div><input class="spi" id="ms-jpegfps" type="number" min="1" max="25" placeholder="5"></div></div>
+        </div>
       </div>
     </div>
     <div class="spft"><span class="bsv" id="bsv">✓ Sauvegardé</span><button class="spca" id="spca">Annuler</button><button class="spsv" id="spsv">Enregistrer</button></div>
@@ -659,6 +663,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
     </div>
     <div class="cam-stage">
       <video id="cam-video" autoplay playsinline muted controls></video>
+      <img id="cam-img" style="display:none" alt="">
       <div class="cam-status" id="cam-status"></div>
     </div>
   </div>
@@ -1076,18 +1081,17 @@ function evXY(e){const t=e.touches&&e.touches[0]||e.changedTouches&&e.changedTou
 wrap.addEventListener('mousemove',e=>{
   if(!gpsMode||gpsDragObj||gpsPending)return;
   if(e.target.closest('.dp'))return; // curseur dans la popup : ne pas la masquer
-  const cRect=canvas.getBoundingClientRect(),wRect=wrap.getBoundingClientRect();
+  const cRect=canvas.getBoundingClientRect();
   const csx=e.clientX-cRect.left,csy=e.clientY-cRect.top;
-  const wsx=e.clientX-wRect.left,wsy=e.clientY-wRect.top;
-  if(csx<0||csy<0||csx>cRect.width||csy>cRect.height){hideDP();hovered=null;wrap.style.cursor='';return;}
+  // Survol : on met seulement à jour le surlignage/curseur ; la popup ne s'ouvre qu'au clic.
+  if(csx<0||csy<0||csx>cRect.width||csy>cRect.height){hovered=null;wrap.style.cursor='';return;}
   const dig=hDIG(csx,csy);
-  if(dig){hovered={type:'dig',ref:dig.device};showDP(dig.device,wsx,wsy);wrap.style.cursor='';return;}
+  if(dig){hovered={type:'dig',ref:dig.device};wrap.style.cursor='';return;}
   const g=hGrp(csx,csy),dv=!g?hDev(csx,csy):null;
   hovered=g?{type:'group',ref:g}:dv?{type:'dev',ref:dv}:null;
-  if(dv)showDP(dv,wsx,wsy);else hideDP();
   wrap.style.cursor=hovered&&!placeMode?(locked?'pointer':'move'):'';
 });
-wrap.addEventListener('mouseleave',()=>{if(gpsMode&&!gpsDragObj&&!gpsPending){hideDP();hovered=null;}});
+wrap.addEventListener('mouseleave',()=>{if(gpsMode&&!gpsDragObj&&!gpsPending){hovered=null;}});
 
 // Début d'interaction (capture phase pour bloquer le pan Leaflet avant qu'il ne démarre)
 function gpsDown(e){
@@ -1123,7 +1127,7 @@ document.addEventListener('touchmove',gpsMove,{passive:false});
 function gpsUp(e){
   if(!gpsMode)return;
   if(!gpsPending){ // relâchement après un clic/pan sur la carte (hors équipement/groupe)
-    if(gpsEmptyDown){const xy=evXY(e);const moved=Math.abs(xy.x-gpsEmptyDown.x)>5||Math.abs(xy.y-gpsEmptyDown.y)>5;gpsEmptyDown=null;if(!moved)hideGP();}
+    if(gpsEmptyDown){const xy=evXY(e);const moved=Math.abs(xy.x-gpsEmptyDown.x)>5||Math.abs(xy.y-gpsEmptyDown.y)>5;gpsEmptyDown=null;if(!moved){hideGP();hideDPNow();}}
     return;
   }
   gpsEmptyDown=null;
@@ -1135,7 +1139,10 @@ function gpsUp(e){
     else dragCommitGroup(target.ref);
   }else if(target.type==='group'){
     const wRect=wrap.getBoundingClientRect(),xy=evXY(e);
-    showGP(target.ref,xy.x-wRect.left,xy.y-wRect.top);
+    hideDPNow();showGP(target.ref,xy.x-wRect.left,xy.y-wRect.top);
+  }else if(target.type==='dev'){
+    const wRect=wrap.getBoundingClientRect(),xy=evXY(e);
+    hideGP();showDP(target.ref,xy.x-wRect.left,xy.y-wRect.top);
   }
 }
 document.addEventListener('mouseup',gpsUp);
@@ -1274,15 +1281,18 @@ function draw(){
   if(bgImage&&!gpsMode){ctx.save();ctx.globalAlpha=0.95;ctx.setTransform(scale,0,0,scale,offX,offY);const iw=bgImage.width,ih=bgImage.height,sw=canvas.width,sh=canvas.height,scaleImg=Math.max(sw/iw,sh/ih),iw2=iw*scaleImg,ih2=ih*scaleImg;ctx.drawImage(bgImage,(sw-iw2)/2,(sh-ih2)/2,iw2,ih2);ctx.restore();ctx.setTransform(1,0,0,1,0,0);}
   if(disp.grid&&!gpsMode){ctx.save();ctx.strokeStyle=mapLight?'rgba(0,0,0,0.08)':'rgba(255,255,255,0.03)';ctx.lineWidth=1;const gs=50*scale,ox=offX%gs,oy=offY%gs;for(let x=ox;x<canvas.width;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}for(let y=oy;y<canvas.height;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}ctx.restore();}
   const SZ=DSZ(),half=SZ/2,CR=Math.max(2,3*scale)*iconScale;
-  for(const g of (gVis()?groups:[])){
+  const gZone=gVis(); // filtre « Points » : si off, on masque la zone (boîte/halo/label) mais on garde les équipements visibles
+  for(const g of groups){
     const st=gSt(g),bb=gBB(g);const{x:bx,y:by,w:bw,h:bh,devs,cx,cy,lblH,empty}=bb;
     const gcr=GCR();
     const gc={ok:TYPES[devs[0]?.d?.type]?.color||'#378ADD',placed:'#1D9E75',warn:'#EF9F27',crit:'#E24B4A',disabled:'#6b7280',partial:'#8B5CF6'}[st]||'#6b7280';
     const iHG=hovered&&hovered.type==='group'&&hovered.ref===g;
     if(g.disabled)ctx.globalAlpha=0.45;
+    if(gZone){
     if(!empty&&disp.halos&&(st==='crit'||st==='warn')){const p=0.5+0.5*Math.sin(pulseT*(st==='crit'?3:1.5));const p2=6+p*10;rr(bx-p2,by-p2,bw+p2*2,bh+p2*2,gcr+5);ctx.fillStyle=hexA(gc,0.15+0.12*p);ctx.fill();ctx.strokeStyle=hexA(gc,0.45+0.3*p);ctx.lineWidth=2;ctx.stroke();}
     rr(bx,by,bw,bh,gcr);ctx.fillStyle=hexA(gc,0.1);ctx.fill();ctx.strokeStyle=g.disabled?'rgba(107,114,128,0.5)':hexA(gc,iHG?0.9:0.45);ctx.lineWidth=iHG?2:1.5;if(g.disabled||empty){ctx.setLineDash([4,3]);}ctx.stroke();ctx.setLineDash([]);
     ctx.fillStyle=mapLight?'rgba(20,25,40,0.9)':'rgba(220,227,245,0.85)';ctx.font=`600 ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.name,cx,by+lblH/2);
+    }
     if(!empty){
       const SZg=DSZ(),hg=SZg/2,CRg=Math.max(2,3*scale)*iconScale;
       for(const p of devs){const d=p.d,sx=p.sx,sy=p.sy,t=TYPES[d.type]||{color:'#666'};if(!tVis(d.type))continue;
@@ -1292,10 +1302,12 @@ function draw(){
         const _ico1=devIcon(d);ctx.fillStyle='rgba(255,255,255,0.92)';ctx.font=`bold ${iconFontSize(_ico1)}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(_ico1,sx,sy);
         const dr=Math.max(2.5,3.5*scale)*iconScale;ctx.beginPath();ctx.arc(sx+hg,sy-hg,dr,0,Math.PI*2);ctx.fillStyle=SDOT[d.status];ctx.fill();ctx.strokeStyle='#0f1117';ctx.lineWidth=1.5;ctx.stroke();
         if((disp.labels||iHD)&&scale>0.5){ctx.fillStyle=mapLight?'rgba(20,25,50,0.85)':'rgba(200,207,225,0.8)';ctx.font=`${Math.max(8,9*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(d.name,sx,sy+hg+3*scale);}}
-    }else{ctx.fillStyle=hexA(gc,0.4);ctx.font=`${Math.max(16,20*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('+',cx,cy+lblH);}
+    }else if(gZone){ctx.fillStyle=hexA(gc,0.4);ctx.font=`${Math.max(16,20*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('+',cx,cy+lblH);}
+    if(gZone){
     if(g.disabled){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(bx+br,by+br,br,0,Math.PI*2);ctx.fillStyle='rgba(107,114,128,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⏸',bx+br,by+br);}
     else if(st==='placed'){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(bx+bw-br,by+br,br,0,Math.PI*2);ctx.fillStyle='rgba(29,158,117,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',bx+bw-br,by+br);}
     else if(g.partial){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(bx+bw-br,by+br,br,0,Math.PI*2);ctx.fillStyle='rgba(139,92,246,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('½',bx+bw-br,by+br);}
+    }
     ctx.globalAlpha=1;}
   for(const d of free()){if(!tVis(d.type))continue;const[sx,sy]=toS(d.x,d.y),t=TYPES[d.type]||{color:'#666'},iH=hovered&&hovered.type==='dev'&&hovered.ref===d;
     if(disp.halos&&(d.status==='crit'||d.status==='warn')){const p=0.5+0.5*Math.sin(pulseT*(d.status==='crit'?3:1.5));const pp=5+p*7,hc=d.status==='crit'?'#E24B4A':'#EF9F27';rr(sx-half-pp,sy-half-pp,SZ+pp*2,SZ+pp*2,CR+3);ctx.fillStyle=hexA(hc,0.22+0.15*p);ctx.fill();ctx.strokeStyle=hexA(hc,0.5+0.3*p);ctx.lineWidth=1.5;ctx.stroke();}
@@ -1324,7 +1336,7 @@ function animate(){pulseT+=0.04;draw();requestAnimationFrame(animate);}
 
 function hGrp(sx,sy){if(!gVis())return null;for(const g of groups){const{x:bx,y:by,w:bw,h:bh}=gBB(g);if(sx>=bx-4&&sx<=bx+bw+4&&sy>=by-4&&sy<=by+bh+4)return g;}return null;}
 function hDev(sx,sy){const h=DSZ()/2+4;for(const d of free()){if(!tVis(d.type))continue;const[dx,dy]=toS(d.x,d.y);if(sx>=dx-h&&sx<=dx+h&&sy>=dy-h&&sy<=dy+h)return d;}return null;}
-function hDIG(sx,sy){if(!gVis())return null;const h=DSZ()/2+4;for(const g of groups){const bb=gBB(g);if(bb.empty)continue;for(const p of bb.devs){if(!tVis(p.d.type))continue;if(sx>=p.sx-h&&sx<=p.sx+h&&sy>=p.sy-h&&sy<=p.sy+h)return{device:p.d,cx:p.sx,cy:p.sy};}}return null;}
+function hDIG(sx,sy){const h=DSZ()/2+4;for(const g of groups){const bb=gBB(g);if(bb.empty)continue;for(const p of bb.devs){if(!tVis(p.d.type))continue;if(sx>=p.sx-h&&sx<=p.sx+h&&sy>=p.sy-h&&sy<=p.sy+h)return{device:p.d,cx:p.sx,cy:p.sy};}}return null;}
 
 /* ── Device popup ──────────────────────────────────────────── */
 const dp=document.getElementById('dpopup');
@@ -1343,7 +1355,7 @@ dp.addEventListener('click',e=>{const b=e.target.closest('.dp-cam');if(!b)return
 /* ── Flux vidéo caméra (Milestone WebRTC) ──────────────────── */
 // Le login est porté par le backend (compte de service) ; on ne fait que de la
 // signalisation WebRTC proxifiée. Le navigateur n'obtient jamais d'identifiants.
-let camIds=[],camServer='',camPc=null,camSession=null,camPolling=false,camGen=0;
+let camIds=[],camServer='',camPc=null,camSession=null,camPolling=false,camGen=0,camImgTimer=null;
 // Vidéo activée si le basic user est configuré.
 function msEnabled(){return !!(milestoneCfg&&milestoneCfg.username);}
 const camV=()=>document.getElementById('cam-video');
@@ -1352,20 +1364,44 @@ function parseSdp(v){if(v&&typeof v==='object')return v;try{return JSON.parse(v)
 function parseIce(c){if(c&&typeof c==='object')return c;if(typeof c==='string'){const s=c.trim();if(s.charAt(0)==='{'){try{return JSON.parse(s);}catch(_){return null;}}if(s.indexOf('candidate:')>=0)return{candidate:s.replace(/^a=/,''),sdpMLineIndex:0};}return null;}
 function camStatus(msg,err){const s=document.getElementById('cam-status');if(!msg){s.classList.add('hide');return;}s.textContent=msg;s.classList.toggle('err',!!err);s.classList.remove('hide');}
 function setActiveTab(i){document.querySelectorAll('#cam-tabs .cam-tab').forEach((b,k)=>b.classList.toggle('on',k===i));}
-async function stopWebRTC(){camPolling=false;if(camPc){try{camPc.close();}catch(e){}camPc=null;}const v=camV();if(v)v.srcObject=null;if(camSession){const sid=camSession;camSession=null;fetch(`${API}/camera/session/${sid}`,{method:'DELETE'}).catch(()=>{});}}
+// Mode image (fallback H265) : on poll des snapshots JPEG dans une <img> au lieu de la <video> WebRTC.
+function stopJpeg(){if(camImgTimer){clearTimeout(camImgTimer);camImgTimer=null;}const im=document.getElementById('cam-img');if(im){im.style.display='none';if(im.src&&im.src.startsWith('blob:'))URL.revokeObjectURL(im.src);im.src='';}}
+async function stopWebRTC(){camPolling=false;stopJpeg();if(camPc){try{camPc.close();}catch(e){}camPc=null;}const v=camV();if(v){v.srcObject=null;v.style.display='';}if(camSession){const sid=camSession;camSession=null;fetch(`${API}/camera/session/${sid}`,{method:'DELETE'}).catch(()=>{});}}
+// Le serveur transcode des JPEG (codec source quelconque, H264/H265) → le navigateur n'a aucun codec à gérer.
+async function startJpeg(deviceId,gen){if(gen!==camGen)return;
+  // Ferme le peer WebRTC en échec mais garde le modal ouvert.
+  if(camPc){try{camPc.close();}catch(e){}camPc=null;}
+  if(camSession){const sid=camSession;camSession=null;fetch(`${API}/camera/session/${sid}`,{method:'DELETE'}).catch(()=>{});}
+  const v=camV();if(v){v.srcObject=null;v.style.display='none';}
+  const im=document.getElementById('cam-img');im.style.display='';
+  camStatus('Codec non décodé par le navigateur (H265) — bascule en mode image…');
+  const fps=(milestoneCfg&&+milestoneCfg.jpegFps)||5,period=Math.max(80,Math.round(1000/fps));
+  const tick=async()=>{if(gen!==camGen)return;
+    try{const r=await fetch(`${API}/camera/snapshot/${encodeURIComponent(deviceId)}?server=${encodeURIComponent(camServer)}&t=${Date.now()}`);
+      if(!r.ok)throw new Error((await r.text())||('HTTP '+r.status));
+      const blob=await r.blob();if(gen!==camGen)return;
+      const old=im.src;im.src=URL.createObjectURL(blob);if(old&&old.startsWith('blob:'))URL.revokeObjectURL(old);
+      camStatus(null);
+    }catch(e){if(gen===camGen)camStatus('Mode image : '+e.message,true);}
+    if(gen===camGen)camImgTimer=setTimeout(tick,period);};
+  tick();}
 async function startWebRTC(deviceId){await stopWebRTC();const gen=++camGen;camStatus('Connexion…');try{
   const sess=await fetch(`${API}/camera/session`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId,server:camServer})}).then(r=>r.json());
   if(gen!==camGen)return; // un autre flux a été demandé entre-temps
   if(sess.error||!sess.offerSDP)throw new Error(sess.error||'Réponse Milestone invalide');
   camSession=sess.sessionId;
   const pc=new RTCPeerConnection({iceServers:sess.iceServers||[]});camPc=pc;
+  // Fallback H265 : si aucune image ne JOUE après le délai configuré (codec non décodé, ou ICE
+  // impossible), on bascule sur des snapshots JPEG (HTTP, sans WebRTC ni codec navigateur).
+  let frameSeen=false;const fbMs=(milestoneCfg&&+milestoneCfg.jpegFallbackMs)||2000;
+  const fbTimer=setTimeout(()=>{if(gen===camGen&&!frameSeen)startJpeg(deviceId,gen);},fbMs);
   // Les candidats ICE locaux ne sont poussés qu'APRÈS l'envoi de l'answer : tant que Milestone n'a
   // pas reçu l'answer, sa session n'accepte pas les candidats et les jette (ICE qui tourne dans le vide).
   let answerSent=false;const iceQueue=[];
   const flushIce=c=>{if(!camSession)return;console.log('[cam] → ICE local',c.candidate);fetch(`${API}/camera/session/${camSession}/ice`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidates:[JSON.stringify(c)]})}).catch(()=>{});};
-  pc.ontrack=e=>{if(gen!==camGen)return;console.log('[cam] ontrack',e.track&&e.track.kind);camV().srcObject=e.streams[0];const v=camV();v.onplaying=()=>{if(gen===camGen)camStatus(null);};if(v.play)v.play().catch(()=>{});};
+  pc.ontrack=e=>{if(gen!==camGen)return;console.log('[cam] ontrack',e.track&&e.track.kind);camV().srcObject=e.streams[0];const v=camV();v.onplaying=()=>{if(gen!==camGen)return;frameSeen=true;clearTimeout(fbTimer);camStatus(null);};if(v.play)v.play().catch(()=>{});};
   pc.onicecandidate=e=>{if(!e.candidate)return;const c=e.candidate.toJSON();if(answerSent)flushIce(c);else iceQueue.push(c);};
-  pc.oniceconnectionstatechange=()=>{if(gen!==camGen)return;const st=pc.iceConnectionState;console.log('[cam] iceConnectionState',st);if(st==='checking')camStatus('Négociation réseau (ICE)…');else if(st==='connected'||st==='completed')camStatus('Réception du flux…');else if(st==='failed')camStatus('Connexion ICE échouée — aucun chemin réseau entre le navigateur et la caméra/serveur (TURN requis ?)',true);else if(st==='disconnected')camStatus('Connexion réseau perdue — tentative de reconnexion…',true);};
+  pc.oniceconnectionstatechange=()=>{if(gen!==camGen||camPc!==pc)return;const st=pc.iceConnectionState;console.log('[cam] iceConnectionState',st);if(st==='checking')camStatus('Négociation réseau (ICE)…');else if(st==='connected'||st==='completed')camStatus('Réception du flux…');else if(st==='failed')camStatus('Connexion ICE échouée — aucun chemin réseau entre le navigateur et la caméra/serveur (TURN requis ?)',true);else if(st==='disconnected')camStatus('Connexion réseau perdue — tentative de reconnexion…',true);};
   await pc.setRemoteDescription(parseSdp(sess.offerSDP));
   const ans=await pc.createAnswer();await pc.setLocalDescription(ans);
   await fetch(`${API}/camera/session/${camSession}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({answerSDP:JSON.stringify(pc.localDescription)})});
@@ -1789,6 +1825,8 @@ async function openSettings(){
   document.getElementById('ms-turn').value=ms.turnUrl||'';
   document.getElementById('ms-turnuser').value=ms.turnUser||'';
   document.getElementById('ms-turnpass').value=ms.turnPass||'';
+  document.getElementById('ms-jpegdelay').value=ms.jpegFallbackMs!=null?ms.jpegFallbackMs:2000;
+  document.getElementById('ms-jpegfps').value=ms.jpegFps!=null?ms.jpegFps:5;
   buildClrEd();
   triggersData=await fetch(`${API}/triggers`).then(r=>r.json());
   // Ensure all categories have an entry
@@ -1817,7 +1855,7 @@ document.getElementById('spsv').addEventListener('click',async()=>{
   const z={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value||'80',path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value,refresh:parseInt(document.getElementById('zri').value)||30,timeout:parseInt(document.getElementById('zto').value)||10,autoRefresh:document.getElementById('zar').checked};
   const d={labels:document.getElementById('dlbl').checked,halos:document.getElementById('dhalo').checked,grid:document.getElementById('dgrid').checked};
   const sync={url:document.getElementById('syncurl').value.trim(),apiKey:document.getElementById('synckey').value};
-  const milestone={username:document.getElementById('ms-user').value.trim(),password:document.getElementById('ms-pass').value,clientId:document.getElementById('ms-client').value.trim()||'GrantValidatorClient',proto:document.getElementById('ms-proto').value,port:document.getElementById('ms-port').value.trim(),macroName:document.getElementById('ms-macro').value.trim()||'{$MILESTONE_ID}',ipMacroName:document.getElementById('ms-ipmacro').value.trim()||'{$MILESTONE.IP}',stunUrl:document.getElementById('ms-stun').value.trim(),turnUrl:document.getElementById('ms-turn').value.trim(),turnUser:document.getElementById('ms-turnuser').value.trim(),turnPass:document.getElementById('ms-turnpass').value};
+  const milestone={username:document.getElementById('ms-user').value.trim(),password:document.getElementById('ms-pass').value,clientId:document.getElementById('ms-client').value.trim()||'GrantValidatorClient',proto:document.getElementById('ms-proto').value,port:document.getElementById('ms-port').value.trim(),macroName:document.getElementById('ms-macro').value.trim()||'{$MILESTONE_ID}',ipMacroName:document.getElementById('ms-ipmacro').value.trim()||'{$MILESTONE.IP}',stunUrl:document.getElementById('ms-stun').value.trim(),turnUrl:document.getElementById('ms-turn').value.trim(),turnUser:document.getElementById('ms-turnuser').value.trim(),turnPass:document.getElementById('ms-turnpass').value,jpegFallbackMs:parseInt(document.getElementById('ms-jpegdelay').value,10)||2000,jpegFps:parseInt(document.getElementById('ms-jpegfps').value,10)||5};
   milestoneCfg=milestone;
   await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({zabbix:z,display:d,sync,milestone})});
   // Save category colors
@@ -1931,9 +1969,9 @@ document.querySelectorAll('.ahf').forEach(b=>b.addEventListener('click',()=>{doc
 
 /* ── Mouse on canvas ───────────────────────────────────────── */
 wrap.addEventListener('mousedown',e=>{if(gpsMode)return;if(e.target!==canvas)return;if(dragSb)return;e.preventDefault();mdAt={x:e.clientX,y:e.clientY};const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;const dig=hDIG(sx,sy);if(dig&&!locked){dragObj={type:'dev',ref:dig.device};return;}const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};return;}const d=hDev(sx,sy);if(d&&!locked){dragObj={type:'dev',ref:d};return;}dragging=true;dragStart={x:e.clientX-offX,y:e.clientY-offY};wrap.classList.add('grabbing');});
-document.addEventListener('mousemove',e=>{if(dragSb)return;if(gpsMode)return;if(!dragObj&&!dragging&&e.target.closest('.dp'))return;const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj){const[rx,ry]=toR(sx,sy);dragApply(dragObj,rx,ry);hideDPNow();return;}if(dragging){offX=e.clientX-dragStart.x;offY=e.clientY-dragStart.y;hideDPNow();return;}const wr=wrap.getBoundingClientRect();if(e.clientX<wr.left||e.clientX>wr.right||e.clientY<wr.top||e.clientY>wr.bottom){return;}const dig=hDIG(sx,sy);if(dig){hovered={type:'dig',ref:dig.device};wrap.style.cursor='default';showDP(dig.device,sx,sy);return;}const g=hGrp(sx,sy),d=!g?hDev(sx,sy):null;hovered=g?{type:'group',ref:g}:d?{type:'dev',ref:d}:null;wrap.style.cursor=hovered?(locked?'pointer':'move'):'grab';if(d)showDP(d,sx,sy);else hideDP();});
-document.addEventListener('mouseup',async e=>{if(gpsMode)return;if(!dragging&&!dragObj&&!mdAt)return;const mv=mdAt&&(Math.abs(e.clientX-mdAt.x)>5||Math.abs(e.clientY-mdAt.y)>5);const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj&&mv){if(dragObj.type==='dev'){await dropDevice(dragObj.ref,sx,sy);}if(dragObj.type==='group')await dragCommitGroup(dragObj.ref);}dragObj=null;dragging=false;wrap.classList.remove('grabbing');mdAt=null;if(mv)return;const g=hGrp(sx,sy);if(g)showGP(g,sx,sy);else hideGP();});
-wrap.addEventListener('mouseleave',()=>{if(!dragging&&!dragObj){hideDP();hovered=null;wrap.style.cursor='grab';}});
+document.addEventListener('mousemove',e=>{if(dragSb)return;if(gpsMode)return;if(!dragObj&&!dragging&&e.target.closest('.dp'))return;const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj){const[rx,ry]=toR(sx,sy);dragApply(dragObj,rx,ry);hideDPNow();return;}if(dragging){offX=e.clientX-dragStart.x;offY=e.clientY-dragStart.y;hideDPNow();return;}const wr=wrap.getBoundingClientRect();if(e.clientX<wr.left||e.clientX>wr.right||e.clientY<wr.top||e.clientY>wr.bottom){return;}const dig=hDIG(sx,sy);if(dig){hovered={type:'dig',ref:dig.device};wrap.style.cursor='default';return;}const g=hGrp(sx,sy),d=!g?hDev(sx,sy):null;hovered=g?{type:'group',ref:g}:d?{type:'dev',ref:d}:null;wrap.style.cursor=hovered?(locked?'pointer':'move'):'grab';});
+document.addEventListener('mouseup',async e=>{if(gpsMode)return;if(!dragging&&!dragObj&&!mdAt)return;const mv=mdAt&&(Math.abs(e.clientX-mdAt.x)>5||Math.abs(e.clientY-mdAt.y)>5);const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj&&mv){if(dragObj.type==='dev'){await dropDevice(dragObj.ref,sx,sy);}if(dragObj.type==='group')await dragCommitGroup(dragObj.ref);}dragObj=null;dragging=false;wrap.classList.remove('grabbing');mdAt=null;if(mv)return;const dig=hDIG(sx,sy);if(dig){hideGP();showDP(dig.device,sx,sy);return;}const g=hGrp(sx,sy);if(g){hideDPNow();showGP(g,sx,sy);return;}const d=hDev(sx,sy);if(d){hideGP();showDP(d,sx,sy);return;}hideDP();hideGP();});
+wrap.addEventListener('mouseleave',()=>{if(!dragging&&!dragObj){hovered=null;wrap.style.cursor='grab';}});
 wrap.addEventListener('wheel',e=>{if(gpsMode)return;e.preventDefault();const rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top,f=e.deltaY<0?1.06:0.945,ns=Math.max(.2,Math.min(5,scale*f));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;},{passive:false});
 let lT=null,tapStart=null;
 wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;tapStart={x:t.clientX,y:t.clientY,time:Date.now()};if(!isMobile){const dig=hDIG(sx,sy);if(dig&&!locked)dragObj={type:'dev',ref:dig.device};else{const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};}else{const d=hDev(sx,sy);if(d&&!locked)dragObj={type:'dev',ref:d};else{dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}}};if(isMobile){dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}else{tapStart=null;}lT=Array.from(e.touches);},{passive:true});

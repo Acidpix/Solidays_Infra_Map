@@ -119,4 +119,56 @@ async function getIce(cfg, sessionId) {
 }
 async function closeSession(cfg, sessionId) { try { return await api(cfg, 'DELETE', `/Session/${sessionId}`); } catch { return null; } }
 
-module.exports = { getToken, createSession, sendAnswer, postIce, getIce, closeSession };
+/* ── Snapshot JPEG (fallback H265) ──────────────────────────────────
+ * Le navigateur ne décode pas le H.265 en WebRTC (Chrome/Edge) → la <video> reste noire.
+ * Comme le client web Milestone, on récupère alors des images JPEG transcodées par le
+ * Recording Server : le navigateur n'a plus aucun codec à gérer, il affiche des <img>.
+ * Endpoint : POST {serverUrl}/API/REST/v1/cameras/{cameraId}?task=JpegGetLive  {width,height}
+ * (transcodage CPU côté Recording Server — à réserver au fallback). Milestone 2025R3+. */
+function restBase(cfg) { return root(cfg) + '/API/REST/v1'; }
+
+// Cherche récursivement la première chaîne base64 « longue » dans la réponse JSON
+// (le format exact — champ data/blob/image… — n'est pas documenté, on reste tolérant).
+function findBase64(o, depth = 0) {
+  if (depth > 6 || o == null) return null;
+  if (typeof o === 'string') return (o.length > 256 && /^[A-Za-z0-9+/=\s]+$/.test(o)) ? o.replace(/\s+/g, '') : null;
+  if (Array.isArray(o)) { for (const v of o) { const r = findBase64(v, depth + 1); if (r) return r; } return null; }
+  if (typeof o === 'object') {
+    for (const k of ['blob', 'bytes', 'base64', 'image', 'data', 'snapshot', 'jpeg']) {
+      if (o[k] != null) { const r = findBase64(o[k], depth + 1); if (r) return r; }
+    }
+    for (const v of Object.values(o)) { const r = findBase64(v, depth + 1); if (r) return r; }
+  }
+  return null;
+}
+
+async function getSnapshot(cfg, cameraId, width, height) {
+  if (!cameraId) throw new Error('cameraId (GUID caméra) requis');
+  const token = await getToken(cfg);
+  const url = `${restBase(cfg)}/cameras/${encodeURIComponent(cameraId)}?task=JpegGetLive`;
+  const body = {};
+  if (width) body.width = Math.round(width);
+  if (height) body.height = Math.round(height);
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    agent: agentFor(url),
+    timeout: 15000,
+  });
+  const ct = res.headers.get('content-type') || '';
+  if (!res.ok) {
+    const text = await res.text();
+    console.error(`[Milestone] JpegGetLive ${cameraId} → HTTP ${res.status} : ${text.slice(0, 300)}`);
+    throw new Error(`Milestone JpegGetLive → HTTP ${res.status}: ${text.slice(0, 300)}`);
+  }
+  // Réponse soit en image brute (Content-Type image/*), soit en JSON enveloppant du base64.
+  if (ct.startsWith('image/')) return { buffer: Buffer.from(await res.arrayBuffer()), contentType: ct };
+  const text = await res.text();
+  let j = null; try { j = JSON.parse(text); } catch { /* ni image ni JSON */ }
+  const b64 = j ? findBase64(j) : null;
+  if (!b64) throw new Error(`Réponse JpegGetLive sans image exploitable (HTTP ${res.status}, ${ct || 'sans type'})`);
+  return { buffer: Buffer.from(b64, 'base64'), contentType: 'image/jpeg' };
+}
+
+module.exports = { getToken, createSession, sendAnswer, postIce, getIce, closeSession, getSnapshot };
