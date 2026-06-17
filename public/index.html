@@ -1347,6 +1347,9 @@ let camIds=[],camServer='',camPc=null,camSession=null,camPolling=false,camGen=0;
 // Vidéo activée si le basic user est configuré.
 function msEnabled(){return !!(milestoneCfg&&milestoneCfg.username);}
 const camV=()=>document.getElementById('cam-video');
+// Milestone sérialise l'offre SDP et les candidats ICE en chaînes JSON ({type,sdp} / RTCIceCandidateInit).
+function parseSdp(v){if(v&&typeof v==='object')return v;try{return JSON.parse(v);}catch(_){return{type:'offer',sdp:String(v)};}}
+function parseIce(c){if(c&&typeof c==='object')return c;try{return JSON.parse(c);}catch(_){return null;}}
 function camStatus(msg,err){const s=document.getElementById('cam-status');if(!msg){s.classList.add('hide');return;}s.textContent=msg;s.classList.toggle('err',!!err);s.classList.remove('hide');}
 function setActiveTab(i){document.querySelectorAll('#cam-tabs .cam-tab').forEach((b,k)=>b.classList.toggle('on',k===i));}
 async function stopWebRTC(){camPolling=false;if(camPc){try{camPc.close();}catch(e){}camPc=null;}const v=camV();if(v)v.srcObject=null;if(camSession){const sid=camSession;camSession=null;fetch(`${API}/camera/session/${sid}`,{method:'DELETE'}).catch(()=>{});}}
@@ -1357,15 +1360,15 @@ async function startWebRTC(deviceId){await stopWebRTC();const gen=++camGen;camSt
   camSession=sess.sessionId;
   const pc=new RTCPeerConnection({iceServers:sess.iceServers||[]});camPc=pc;
   pc.ontrack=e=>{if(gen!==camGen)return;camV().srcObject=e.streams[0];camStatus(null);};
-  pc.onicecandidate=e=>{if(e.candidate&&camSession)fetch(`${API}/camera/session/${camSession}/ice`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidates:[e.candidate.toJSON()]})}).catch(()=>{});};
+  pc.onicecandidate=e=>{if(e.candidate&&camSession)fetch(`${API}/camera/session/${camSession}/ice`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidates:[JSON.stringify(e.candidate.toJSON())]})}).catch(()=>{});};
   pc.oniceconnectionstatechange=()=>{if(gen!==camGen)return;if(pc.iceConnectionState==='failed')camStatus('Connexion vidéo échouée (réseau/NAT)',true);};
-  await pc.setRemoteDescription({type:'offer',sdp:sess.offerSDP});
+  await pc.setRemoteDescription(parseSdp(sess.offerSDP));
   const ans=await pc.createAnswer();await pc.setLocalDescription(ans);
-  await fetch(`${API}/camera/session/${camSession}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({answerSDP:ans.sdp})});
+  await fetch(`${API}/camera/session/${camSession}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({answerSDP:JSON.stringify(pc.localDescription)})});
   pollIce(pc,camSession,gen);
 }catch(e){if(gen===camGen)camStatus('Erreur : '+e.message,true);}}
 async function pollIce(pc,sid,gen){camPolling=true;for(let n=0;n<40&&camPolling&&gen===camGen&&camSession===sid;n++){
-  try{const r=await fetch(`${API}/camera/session/${sid}/ice`).then(r=>r.json());for(const c of (r.candidates||[])){try{await pc.addIceCandidate(new RTCIceCandidate(c));}catch(e){}}}catch(e){}
+  try{const r=await fetch(`${API}/camera/session/${sid}/ice`).then(r=>r.json());for(const c of (r.candidates||[])){const ic=parseIce(c);if(ic)try{await pc.addIceCandidate(ic);}catch(e){}}}catch(e){}
   if(pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed')break;
   await new Promise(r=>setTimeout(r,700));
 }}
