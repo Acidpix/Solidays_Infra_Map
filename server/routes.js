@@ -545,8 +545,8 @@ router.delete('/map/background', (req, res) => {
 /* ── MOCK DATA ────────────────────────────────────────────── */
 function getMockDevices() {
   return [
-    { id:'d1',  name:'WAVE-SCENE-01',  type:'wave', ip:'10.0.1.11', ping:true,  latency:2.1,  signal:-58, power:42.5, temp:38, uptime:'12j 4h' },
-    { id:'d2',  name:'WAVE-SCENE-02',  type:'wave', ip:'10.0.1.12', ping:true,  latency:2.4,  signal:-62, power:39.1, temp:41, uptime:'12j 4h' },
+    { id:'d1',  name:'WAVE-SCENE-01',  type:'wave', ip:'10.0.1.11', location:'Scène Solidarité', ping:true,  latency:2.1,  signal:-58, power:42.5, temp:38, uptime:'12j 4h' },
+    { id:'d2',  name:'WAVE-SCENE-02',  type:'wave', ip:'10.0.1.12', location:'Scène Paris',      ping:true,  latency:2.4,  signal:-62, power:39.1, temp:41, uptime:'12j 4h' },
     { id:'d3',  name:'WAVE-BACKSTAGE', type:'wave', ip:'10.0.1.13', ping:true,  latency:18.7, signal:-81, power:55.8, temp:63, uptime:'3j 2h'  },
     { id:'d4',  name:'AP-SCENE-A1',    type:'ap',   ip:'10.0.2.21', ping:true,  latency:1.2,  signal:-45, clients:34, connFailure:0, uptime:'12j 4h' },
     { id:'d5',  name:'AP-SCENE-A2',    type:'ap',   ip:'10.0.2.22', ping:true,  latency:1.4,  signal:-48, clients:28, connFailure:3, uptime:'12j 4h' },

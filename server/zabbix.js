@@ -107,6 +107,7 @@ async function getHosts(cfg, categories = [], milestoneMacro = '{$MILESTONE_ID}'
       output: ['hostid', 'name', 'status'],
       selectHostGroups: ['name'],
       selectMacros: ['macro', 'value'],
+      selectInventory: ['location'],
       filter: { status: 0 },
     }, auth);
   } catch (e) {
@@ -115,6 +116,7 @@ async function getHosts(cfg, categories = [], milestoneMacro = '{$MILESTONE_ID}'
       output: ['hostid', 'name', 'status'],
       selectGroups: ['name'],
       selectMacros: ['macro', 'value'],
+      selectInventory: ['location'],
       filter: { status: 0 },
     }, auth);
   }
@@ -186,6 +188,10 @@ async function getHosts(cfg, categories = [], milestoneMacro = '{$MILESTONE_ID}'
     const srvMacro = (host.macros || []).find(m => m.macro === milestoneServerMacro);
     const milestoneServer = srvMacro ? (srvMacro.value || '').trim() : '';
 
+    // Localisation : champ "location" de l'inventaire Zabbix (texte). host.inventory peut être
+    // un objet (inventaire activé) ou un tableau vide [] (inventaire désactivé sur l'hôte).
+    const location = (host.inventory && !Array.isArray(host.inventory) ? (host.inventory.location || '') : '').trim();
+
     return {
       id: `zbx_${host.hostid}`,
       zabbix_id: host.hostid,
@@ -193,6 +199,7 @@ async function getHosts(cfg, categories = [], milestoneMacro = '{$MILESTONE_ID}'
       type: category || 'uncat',
       hostGroups, // mémorisé pour permettre une re-catégorisation sans re-polling Zabbix
       ip: ipByHost[host.hostid] || '',
+      location,
       ...metrics,
       milestoneIds,
       milestoneServer,
