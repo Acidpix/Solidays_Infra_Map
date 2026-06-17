@@ -58,7 +58,7 @@ async function getToken(cfg, force = false) {
 
 function apiBase(cfg) { return root(cfg) + '/API/REST/v1/WebRTC'; }
 
-async function api(cfg, method, path, jsonBody) {
+async function api(cfg, method, path, jsonBody, quiet = false) {
   const token = await getToken(cfg);
   const url = apiBase(cfg) + path;
   const opt = { method, headers: { Authorization: `Bearer ${token}` }, agent: agentFor(url), timeout: 15000 };
@@ -71,7 +71,7 @@ async function api(cfg, method, path, jsonBody) {
   let j = null; if (text) { try { j = JSON.parse(text); } catch { /* corps non-JSON toléré (PATCH/POST vides) */ } }
   if (!res.ok) {
     // L'erreur Milestone est souvent une AggregateException dont la cause racine est en fin de texte.
-    console.error(`[Milestone] ${method} ${path} → HTTP ${res.status} : ${text}`);
+    if (!quiet) console.error(`[Milestone] ${method} ${path} → HTTP ${res.status} : ${text}`);
     const detail = (j && (j.error_description || j.error || j.message)) || text;
     throw new Error(`Milestone WebRTC ${method} ${path} → HTTP ${res.status}: ${String(detail).slice(0, 500)}`);
   }
@@ -117,7 +117,9 @@ async function getIce(cfg, sessionId) {
   if (n) console.log(`[Milestone] GET /IceCandidates/${sessionId} → ${n} candidat(s) serveur`);
   return j;
 }
-async function closeSession(cfg, sessionId) { try { return await api(cfg, 'DELETE', `/Session/${sessionId}`); } catch { return null; } }
+// Best-effort : certaines versions de l'API Gateway n'autorisent pas DELETE sur /Session (HTTP 405) ;
+// la session expire alors d'elle-même côté serveur. On reste silencieux pour ne pas polluer les logs.
+async function closeSession(cfg, sessionId) { try { return await api(cfg, 'DELETE', `/Session/${sessionId}`, undefined, true); } catch { return null; } }
 
 /* ── Snapshot JPEG (fallback H265) ──────────────────────────────────
  * Le navigateur ne décode pas le H.265 en WebRTC (Chrome/Edge) → la <video> reste noire.
@@ -162,11 +164,20 @@ async function getSnapshot(cfg, cameraId, width, height) {
     throw new Error(`Milestone JpegGetLive → HTTP ${res.status}: ${text.slice(0, 300)}`);
   }
   // Réponse soit en image brute (Content-Type image/*), soit en JSON enveloppant du base64.
-  if (ct.startsWith('image/')) return { buffer: Buffer.from(await res.arrayBuffer()), contentType: ct };
+  if (ct.startsWith('image/')) {
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > 100) return { buffer: buf, contentType: ct };
+    return { buffer: null }; // 200 mais corps vide → frame indisponible (transitoire)
+  }
   const text = await res.text();
   let j = null; try { j = JSON.parse(text); } catch { /* ni image ni JSON */ }
   const b64 = j ? findBase64(j) : null;
-  if (!b64) throw new Error(`Réponse JpegGetLive sans image exploitable (HTTP ${res.status}, ${ct || 'sans type'})`);
+  if (!b64) {
+    // HTTP 200 sans JPEG exploitable = pas de frame dispo à cet instant (transcodeur, cadence…).
+    // Transitoire, pas une vraie erreur : on signale « pas d'image » et le client garde la précédente.
+    console.warn(`[Milestone] JpegGetLive ${cameraId} → 200 sans image (${ct || 'sans type'}) : ${text.slice(0, 120)}`);
+    return { buffer: null };
+  }
   return { buffer: Buffer.from(b64, 'base64'), contentType: 'image/jpeg' };
 }
 

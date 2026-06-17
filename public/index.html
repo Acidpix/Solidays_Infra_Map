@@ -153,6 +153,27 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe 
 /* Overlays */
 .ov{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:500;display:flex;align-items:center;justify-content:center}
 .ov.h{display:none}
+/* ── Page de connexion ─────────────────────────────────────── */
+#ov-login{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#17122f,#1f1b57);overflow:hidden}
+#ov-login.h{display:none}
+.login-wm{position:absolute;inset:0;background-image:url('https://www.solidays.org/wp-content/uploads/2023/11/s24_logo2l_sansdate.png');background-repeat:no-repeat;background-position:center;background-size:min(90vw,1100px);opacity:0.05;filter:grayscale(1) brightness(3);pointer-events:none}
+.login-card{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:14px;width:340px;max-width:90vw;padding:40px 34px 34px;background:rgba(15,17,23,0.72);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,0.12);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,0.45)}
+.login-logo{height:64px;width:auto;margin-bottom:2px}
+.login-title{font-size:20px;font-weight:700;color:#fff;letter-spacing:.02em}
+.login-sub{font-size:12.5px;color:#a9b0c5;text-align:center;margin-top:-8px}
+.login-fields{display:flex;flex-direction:column;gap:10px;width:100%;margin-top:6px}
+.login-inp{width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;padding:11px 13px;color:#fff;font-size:14px;outline:none;transition:border-color .15s,background .15s}
+.login-inp::placeholder{color:#7f879c}
+.login-inp:focus{border-color:#9f6cff;background:rgba(255,255,255,0.09)}
+.login-btn{width:100%;margin-top:4px;padding:11px;border:none;border-radius:8px;background:linear-gradient(90deg,#7b3fe4,#9f6cff);color:#fff;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
+.login-btn:hover{opacity:.92}
+.login-btn:disabled{opacity:.5;cursor:default}
+.login-err{font-size:12.5px;color:#ff8a8a;text-align:center;min-height:16px}
+/* ── Comptes (onglet Paramètres) ───────────────────────────── */
+.usr-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r)}
+.usr-name{font-size:13px;color:var(--text)}
+.usr-you{font-size:11px;color:var(--text3)}
+.usr-del{font-size:11px;padding:4px 10px}
 /* Bouton "Voir le flux" dans la popup équipement */
 .dp-cam{margin-top:10px;width:100%;padding:8px 10px;border:none;border-radius:8px;background:#378ADD;color:#fff;font-size:12px;font-weight:600;cursor:pointer}
 .dp-cam:hover{background:#2f78c2}
@@ -382,6 +403,22 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
 <script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js" crossorigin=""></script>
 </head>
 <body>
+<!-- Page de connexion (logo Solidays en filigrane) -->
+<div id="ov-login" class="h">
+  <div class="login-wm"></div>
+  <form class="login-card" id="login-card" autocomplete="on">
+    <img class="login-logo" src="https://www.solidays.org/wp-content/uploads/2023/11/s24_logo2l_sansdate.png" alt="Solidays">
+    <div class="login-title">Soliday Map</div>
+    <div class="login-sub" id="login-sub">Connectez-vous pour accéder à la carte</div>
+    <div class="login-fields">
+      <input class="login-inp" id="lg-user" type="text" placeholder="Identifiant" autocomplete="username">
+      <input class="login-inp" id="lg-pass" type="password" placeholder="Mot de passe" autocomplete="current-password">
+      <input class="login-inp" id="lg-pass2" type="password" placeholder="Confirmer le mot de passe" autocomplete="new-password" style="display:none">
+    </div>
+    <button class="login-btn" id="lg-btn" type="submit">Se connecter</button>
+    <div class="login-err" id="lg-err"></div>
+  </form>
+</div>
 <div id="app">
   <div id="topbar">
     <div class="logo">
@@ -411,6 +448,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
     <a class="tb-btn tb-hide-mob" id="btn-help" href="https://github.com/Acidpix/Solidays_Infra_Map/blob/main/GUIDE-UTILISATEUR.md" target="_blank" rel="noopener" title="Guide utilisateur" style="text-decoration:none"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Aide</a>
     <button class="tb-btn tb-hide-mob" id="btn-settings"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Paramètres</button>
     <button class="tb-btn tb-hide-mob" id="btn-theme" title="Mode clair / sombre"><svg id="theme-icon-moon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg><svg id="theme-icon-sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
+    <button class="tb-btn tb-hide-mob" id="btn-logout" title="Se déconnecter"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>
     <!-- Mobile hamburger menu button -->
     <button class="tb-btn" id="btn-mob-menu" title="Menu"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>
   </div>
@@ -575,6 +613,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
       <div class="spt" data-t="gps">GPS / Carte</div>
       <div class="spt" data-t="sync">Synchronisation</div>
       <div class="spt" data-t="milestone">Vidéo</div>
+      <div class="spt" data-t="users">Comptes</div>
     </div>
     <div class="spb">
       <div id="st-zabbix">
@@ -662,6 +701,19 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
         <div class="sps"><div class="spst">Mode image <span class="hi">(fallback H265)</span></div>
           <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Si le navigateur ne décode pas le flux (codec <strong>H.265</strong> non supporté par Chrome/Edge), bascule automatiquement sur des images JPEG transcodées par le serveur Milestone. Plus de FPS = plus fluide mais plus de charge CPU sur le Recording Server.</p>
           <div class="row2"><div class="spf"><div class="spl">Délai avant bascule <span class="hi">(ms)</span></div><input class="spi" id="ms-jpegdelay" type="number" min="500" step="100" placeholder="2000"></div><div class="spf"><div class="spl">Images par seconde</div><input class="spi" id="ms-jpegfps" type="number" min="1" max="25" placeholder="5"></div></div>
+        </div>
+      </div>
+      <div id="st-users" style="display:none">
+        <div class="sps"><div class="spst">Compte connecté</div>
+          <div class="tr"><div><div class="trl" id="usr-current">—</div><div class="trd">Compte avec lequel vous êtes connecté</div></div><button class="mb ca" id="usr-logout" type="button">Se déconnecter</button></div>
+          <div class="row2" style="margin-top:6px;align-items:flex-end"><div class="spf"><div class="spl">Changer mon mot de passe</div><input class="spi" id="usr-newpw" type="password" placeholder="Nouveau mot de passe"></div><div class="spf" style="max-width:160px"><button class="mb co" id="usr-chpw" type="button" style="width:100%">Modifier</button></div></div>
+          <span id="usr-pwres" style="font-size:12px;color:var(--text3)"></span>
+        </div>
+        <div class="sps"><div class="spst">Comptes utilisateurs</div>
+          <div id="usr-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"></div>
+          <div class="spl">Ajouter un compte</div>
+          <div class="row2"><div class="spf"><input class="spi" id="usr-newuser" type="text" placeholder="Identifiant"></div><div class="spf"><input class="spi" id="usr-newpass" type="password" placeholder="Mot de passe"></div></div>
+          <div style="display:flex;gap:10px;align-items:center;margin-top:4px"><button class="mb co" id="usr-add" type="button">+ Ajouter</button><span id="usr-addres" style="font-size:12px;color:var(--text3)"></span></div>
         </div>
       </div>
     </div>
@@ -1410,13 +1462,16 @@ async function startJpeg(deviceId,gen){if(gen!==camGen)return;
   // Taille demandée = taille d'affichage (× pixel ratio, plafonnée) pour rester net sans sur-transcoder.
   const stg=document.querySelector('.cam-stage'),dpr=Math.min(window.devicePixelRatio||1,2);
   const w=Math.min(1920,Math.round((stg&&stg.clientWidth||1280)*dpr)),h=Math.min(1080,Math.round((stg&&stg.clientHeight||720)*dpr));
+  let fails=0;
   const tick=async()=>{if(gen!==camGen)return;
     try{const r=await fetch(`${API}/camera/snapshot/${encodeURIComponent(deviceId)}?server=${encodeURIComponent(camServer)}&w=${w}&h=${h}&t=${Date.now()}`);
-      if(!r.ok)throw new Error((await r.text())||('HTTP '+r.status));
-      const blob=await r.blob();if(gen!==camGen)return;
-      const old=im.src;im.src=URL.createObjectURL(blob);if(old&&old.startsWith('blob:'))URL.revokeObjectURL(old);
-      camStatus(null);
-    }catch(e){if(gen===camGen)camStatus('Mode image : '+e.message,true);}
+      if(r.status!==204){ // 204 = pas de frame à cet instant → on garde l'image précédente
+        if(!r.ok)throw new Error((await r.text())||('HTTP '+r.status));
+        const blob=await r.blob();if(gen!==camGen)return;
+        if(blob.size){const old=im.src;im.src=URL.createObjectURL(blob);if(old&&old.startsWith('blob:'))URL.revokeObjectURL(old);}
+      }
+      fails=0;camStatus(null);
+    }catch(e){if(gen===camGen&&++fails>=5)camStatus('Mode image : '+e.message,true);} // tolère les ratés transitoires
     if(gen===camGen)camImgTimer=setTimeout(tick,period);};
   tick();}
 async function startWebRTC(deviceId){await stopWebRTC();const gen=++camGen;camStatus('Connexion…');try{
@@ -1881,8 +1936,49 @@ async function openSettings(){
   // Ensure all categories have an entry
   categories.forEach(c=>{if(!triggersData[c.id])triggersData[c.id]=[];});
   buildTgUI();
+  loadUsers();
   document.getElementById('ov-settings').classList.remove('h');
 }
+
+/* ── Comptes utilisateurs ──────────────────────────────────── */
+async function loadUsers(){
+  try{
+    const me=await fetch(`${API}/auth/me`).then(r=>r.json()).catch(()=>({}));
+    document.getElementById('usr-current').textContent=me.user||'—';
+    const list=await fetch(`${API}/users`).then(r=>r.json());
+    const el=document.getElementById('usr-list');
+    el.innerHTML=list.map(u=>`<div class="usr-row"><span class="usr-name">${u.username}${u.current?' <span class="usr-you">(vous)</span>':''}</span>${list.length>1&&!u.current?`<button class="mb ca usr-del" data-u="${u.username}" type="button">Supprimer</button>`:''}</div>`).join('')||'<span style="font-size:12px;color:var(--text3)">Aucun compte</span>';
+    el.querySelectorAll('.usr-del').forEach(b=>b.addEventListener('click',()=>delUser(b.dataset.u)));
+  }catch(e){}
+}
+async function delUser(u){
+  if(!confirm(`Supprimer le compte « ${u} » ?`))return;
+  const r=await fetch(`${API}/users/${encodeURIComponent(u)}`,{method:'DELETE'});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){alert(j.error||'Suppression impossible');return;}
+  loadUsers();
+}
+document.getElementById('usr-add').addEventListener('click',async()=>{
+  const u=document.getElementById('usr-newuser').value.trim();
+  const p=document.getElementById('usr-newpass').value;
+  const res=document.getElementById('usr-addres');res.style.color='var(--text3)';res.textContent='';
+  const r=await fetch(`${API}/users`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+  const j=await r.json().catch(()=>({}));
+  if(r.ok){res.style.color='var(--ok)';res.textContent='✓ Compte créé';document.getElementById('usr-newuser').value='';document.getElementById('usr-newpass').value='';loadUsers();}
+  else{res.style.color='var(--crit)';res.textContent='✗ '+(j.error||'Erreur');}
+});
+document.getElementById('usr-chpw').addEventListener('click',async()=>{
+  const me=document.getElementById('usr-current').textContent;
+  const p=document.getElementById('usr-newpw').value;
+  const res=document.getElementById('usr-pwres');res.style.color='var(--text3)';res.textContent='';
+  const r=await fetch(`${API}/users/${encodeURIComponent(me)}/password`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p})});
+  const j=await r.json().catch(()=>({}));
+  if(r.ok){res.style.color='var(--ok)';res.textContent='✓ Mot de passe modifié';document.getElementById('usr-newpw').value='';}
+  else{res.style.color='var(--crit)';res.textContent='✗ '+(j.error||'Erreur');}
+});
+async function logout(){try{await fetch(`${API}/auth/logout`,{method:'POST'});}catch(e){}location.reload();}
+document.getElementById('usr-logout').addEventListener('click',logout);
+document.getElementById('btn-logout').addEventListener('click',logout);
 function closeSettings(){document.getElementById('ov-settings').classList.add('h');}
 document.getElementById('btn-settings').addEventListener('click',openSettings);
 document.getElementById('spX').addEventListener('click',closeSettings);
@@ -1898,7 +1994,7 @@ document.getElementById('icon-scale-num').addEventListener('change',e=>{
   e.target.value=(v*100).toFixed(1);
   document.getElementById('icon-scale').value=v;iconScale=v;
 });
-document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display,#st-gps,#st-sync,#st-milestone').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
+document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display,#st-gps,#st-sync,#st-milestone,#st-users').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
 document.getElementById('ztest').addEventListener('click',async()=>{const cfg={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value,path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value};const res=document.getElementById('ztres');res.style.color='var(--text3)';res.textContent='Connexion…';try{const r=await fetch(`${API}/config/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}).then(r=>r.json());if(r.ok){res.style.color='var(--ok)';res.textContent=`✓ Zabbix API v${r.version}`;}else{res.style.color='var(--crit)';res.textContent=`✗ ${r.error}`;}}catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}});
 document.getElementById('spsv').addEventListener('click',async()=>{
   const z={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value||'80',path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value,refresh:parseInt(document.getElementById('zri').value)||30,timeout:parseInt(document.getElementById('zto').value)||10,autoRefresh:document.getElementById('zar').checked};
@@ -2072,22 +2168,70 @@ window.addEventListener('resize',resize);
 resize();
 applyTheme();
 applyMapLight();
-loadBgImage();
 // Mark sidebar button as active initially
 document.getElementById('btn-sidebar').classList.add('active');
 
-fetchCategories().then(()=>{
-  loadData();
-  animate();
-  fetch(`${API}/config`).then(r=>r.json()).then(cfg=>{
-    if(cfg.gps){gpsBounds=cfg.gps;if(cfg.gps.rotation!=null)overlayRotation=cfg.gps.rotation;if(cfg.gps.bearing!=null)mapBearing=cfg.gps.bearing;}
-    if(cfg.mapview)savedView=cfg.mapview;
-    if(cfg.display)disp={...disp,...cfg.display};
-    milestoneCfg=cfg.milestone||null;
-    if(gpsMode)applyGpsMode();
-  }).catch(()=>{if(gpsMode)applyGpsMode();});
-  setInterval(loadData,30000);
-});
+// Démarrage des données — déclenché uniquement après authentification réussie.
+let appStarted=false;
+function startApp(){
+  if(appStarted)return;appStarted=true;
+  loadBgImage();
+  fetchCategories().then(()=>{
+    loadData();
+    animate();
+    fetch(`${API}/config`).then(r=>r.json()).then(cfg=>{
+      if(cfg.gps){gpsBounds=cfg.gps;if(cfg.gps.rotation!=null)overlayRotation=cfg.gps.rotation;if(cfg.gps.bearing!=null)mapBearing=cfg.gps.bearing;}
+      if(cfg.mapview)savedView=cfg.mapview;
+      if(cfg.display)disp={...disp,...cfg.display};
+      milestoneCfg=cfg.milestone||null;
+      if(gpsMode)applyGpsMode();
+    }).catch(()=>{if(gpsMode)applyGpsMode();});
+    setInterval(loadData,30000);
+  });
+}
+
+/* ── Authentification (porte d'entrée) ─────────────────────── */
+const ovLogin=document.getElementById('ov-login');
+let loginSetupMode=false;
+function showLogin(hasUsers){
+  loginSetupMode=!hasUsers;
+  document.getElementById('login-sub').textContent=loginSetupMode?'Créez le premier compte pour démarrer':'Connectez-vous pour accéder à la carte';
+  document.getElementById('lg-pass2').style.display=loginSetupMode?'block':'none';
+  document.getElementById('lg-pass').setAttribute('autocomplete',loginSetupMode?'new-password':'current-password');
+  document.getElementById('lg-btn').textContent=loginSetupMode?'Créer le compte':'Se connecter';
+  document.getElementById('lg-err').textContent='';
+  ovLogin.classList.remove('h');
+  setTimeout(()=>document.getElementById('lg-user').focus(),50);
+}
+function hideLogin(){ovLogin.classList.add('h');}
+async function submitLogin(e){
+  if(e)e.preventDefault();
+  const user=document.getElementById('lg-user').value.trim();
+  const pass=document.getElementById('lg-pass').value;
+  const err=document.getElementById('lg-err');err.textContent='';
+  if(!user||!pass){err.textContent='Identifiant et mot de passe requis';return;}
+  if(loginSetupMode){
+    if(pass.length<6){err.textContent='Mot de passe : 6 caractères minimum';return;}
+    if(pass!==document.getElementById('lg-pass2').value){err.textContent='Les mots de passe ne correspondent pas';return;}
+  }
+  const btn=document.getElementById('lg-btn');btn.disabled=true;
+  try{
+    const r=await fetch(`${API}/auth/${loginSetupMode?'setup':'login'}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})});
+    const j=await r.json().catch(()=>({}));
+    if(r.ok){document.getElementById('lg-pass').value='';document.getElementById('lg-pass2').value='';hideLogin();startApp();}
+    else{err.textContent=j.error||'Échec de la connexion';}
+  }catch(ex){err.textContent='Serveur injoignable';}
+  finally{btn.disabled=false;}
+}
+document.getElementById('login-card').addEventListener('submit',submitLogin);
+async function checkAuth(){
+  try{
+    const s=await fetch(`${API}/auth/status`).then(r=>r.json());
+    if(s.authenticated){hideLogin();startApp();}
+    else{showLogin(s.hasUsers);}
+  }catch(e){showLogin(true);}
+}
+checkAuth();
 </script>
 </body>
 </html>

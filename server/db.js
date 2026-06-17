@@ -69,6 +69,12 @@ db.exec(`
     resolved_at INTEGER
   );
 
+  CREATE TABLE IF NOT EXISTS users (
+    username   TEXT PRIMARY KEY,
+    pass_hash  TEXT NOT NULL,
+    created_at INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
   CREATE INDEX IF NOT EXISTS idx_alert_history_device ON alert_history(device_id);
   CREATE INDEX IF NOT EXISTS idx_alert_history_fired  ON alert_history(fired_at DESC);
 `);
@@ -217,6 +223,16 @@ module.exports = {
     params.push(limit);
     return db.prepare(q).all(...params);
   },
+  // Users
+  getUser: (username) => db.prepare('SELECT * FROM users WHERE username=?').get(username),
+  getAllUsers: () => db.prepare('SELECT username, created_at FROM users ORDER BY created_at').all(),
+  countUsers: () => db.prepare('SELECT COUNT(*) AS n FROM users').get().n,
+  createUser: (username, passHash) =>
+    db.prepare('INSERT INTO users (username, pass_hash) VALUES (?,?)').run(username, passHash),
+  updateUserPassword: (username, passHash) =>
+    db.prepare('UPDATE users SET pass_hash=? WHERE username=?').run(passHash, username),
+  deleteUser: (username) => db.prepare('DELETE FROM users WHERE username=?').run(username),
+
   getAlertStats: () => {
     return db.prepare(`
       SELECT

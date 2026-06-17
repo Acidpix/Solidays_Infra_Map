@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('./db');
 const zabbix = require('./zabbix');
 const milestone = require('./milestone');
+const auth = require('./auth');
 const { evaluateAll } = require('./triggers');
 const path = require('path');
 const fs = require('fs');
@@ -87,6 +88,77 @@ function scheduleRefresh() {
 }
 
 fetchDevices().then(scheduleRefresh);
+
+/* ── AUTH (routes publiques avant le middleware) ──────────── */
+// Statut de connexion : indique si des comptes existent (sinon → écran de configuration
+// initiale côté client) et si la requête courante est authentifiée.
+router.get('/auth/status', (req, res) => {
+  const session = auth.getSession(auth.tokenFromReq(req));
+  res.json({ hasUsers: db.countUsers() > 0, authenticated: !!session, user: session ? session.username : null });
+});
+
+// Création du tout premier compte — autorisée uniquement tant qu'aucun compte n'existe.
+router.post('/auth/setup', (req, res) => {
+  if (db.countUsers() > 0) return res.status(403).json({ error: 'Configuration déjà initialisée' });
+  const username = String((req.body || {}).username || '').trim();
+  const password = String((req.body || {}).password || '');
+  if (username.length < 3) return res.status(400).json({ error: 'Identifiant trop court (3 caractères min.)' });
+  if (password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (6 caractères min.)' });
+  db.createUser(username, auth.hashPassword(password));
+  auth.setSessionCookie(res, auth.createSession(username));
+  res.json({ ok: true, user: username });
+});
+
+router.post('/auth/login', (req, res) => {
+  const username = String((req.body || {}).username || '').trim();
+  const password = String((req.body || {}).password || '');
+  const u = db.getUser(username);
+  if (!u || !auth.verifyPassword(password, u.pass_hash))
+    return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect' });
+  auth.setSessionCookie(res, auth.createSession(username));
+  res.json({ ok: true, user: username });
+});
+
+router.post('/auth/logout', (req, res) => {
+  auth.destroySession(auth.tokenFromReq(req));
+  auth.clearSessionCookie(res);
+  res.json({ ok: true });
+});
+
+// ── À partir d'ici, toute route exige une session valide ──────
+router.use(auth.requireAuth);
+
+router.get('/auth/me', (req, res) => res.json({ user: req.user }));
+
+/* ── UTILISATEURS (gestion des comptes) ───────────────────── */
+router.get('/users', (req, res) => {
+  res.json(db.getAllUsers().map(u => ({ username: u.username, created_at: u.created_at, current: u.username === req.user })));
+});
+
+router.post('/users', (req, res) => {
+  const username = String((req.body || {}).username || '').trim();
+  const password = String((req.body || {}).password || '');
+  if (username.length < 3) return res.status(400).json({ error: 'Identifiant trop court (3 caractères min.)' });
+  if (password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (6 caractères min.)' });
+  if (db.getUser(username)) return res.status(409).json({ error: 'Cet identifiant existe déjà' });
+  db.createUser(username, auth.hashPassword(password));
+  res.json({ ok: true });
+});
+
+router.patch('/users/:username/password', (req, res) => {
+  const password = String((req.body || {}).password || '');
+  if (!db.getUser(req.params.username)) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  if (password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (6 caractères min.)' });
+  db.updateUserPassword(req.params.username, auth.hashPassword(password));
+  res.json({ ok: true });
+});
+
+router.delete('/users/:username', (req, res) => {
+  if (!db.getUser(req.params.username)) return res.status(404).json({ error: 'Utilisateur introuvable' });
+  if (db.countUsers() <= 1) return res.status(400).json({ error: 'Impossible de supprimer le dernier compte' });
+  db.deleteUser(req.params.username);
+  res.json({ ok: true });
+});
 
 /* ── DEVICES ──────────────────────────────────────────────── */
 router.get('/devices', (req, res) => {
@@ -318,8 +390,9 @@ router.get('/camera/snapshot/:deviceId', async (req, res) => {
     if (!isAllowedServer(server)) return res.status(400).send('serveur Milestone non reconnu');
     const w = parseInt(req.query.w, 10) || 0, h = parseInt(req.query.h, 10) || 0;
     const { buffer, contentType } = await milestone.getSnapshot(serverProfile(server), deviceId, w, h);
-    res.set('Content-Type', contentType);
     res.set('Cache-Control', 'no-store');
+    if (!buffer) return res.status(204).end(); // pas de frame dispo à cet instant (transitoire)
+    res.set('Content-Type', contentType);
     res.send(buffer);
   } catch (e) { res.status(502).send(e.message); }
 });
