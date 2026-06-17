@@ -98,8 +98,15 @@ async function createSession(cfg, deviceId, streamId) {
   if (streamId) body.streamId = streamId;
   if (ice.length) body.iceServers = ice;
   const j = await api(cfg, 'POST', '/Session', body);
+  const sessionId = j && (j.sessionId || j.SessionId);
+  const offerSDP = j && (j.offerSDP || j.OfferSDP);
+  // Diagnostic : combien de candidats le serveur embarque dans l'offer SDP, et sur quelles IP ?
+  let sdp = offerSDP; if (sdp && typeof sdp === 'object') sdp = sdp.sdp; if (typeof sdp === 'string' && sdp.charAt(0) === '{') { try { sdp = JSON.parse(sdp).sdp; } catch {} }
+  const cand = String(sdp || '').match(/^a=candidate:.*/gmi) || [];
+  const ips = [...new Set(cand.map(c => c.split(/\s+/)[4]).filter(Boolean))];
+  console.log(`[Milestone] Session ${sessionId} créée — offerSDP ${offerSDP ? 'OK' : 'ABSENT'}, ${cand.length} candidat(s) embarqué(s)${ips.length ? ' sur ' + ips.join(', ') : ''}`);
   // On renvoie au navigateur les iceServers (pour configurer son RTCPeerConnection à l'identique).
-  return { sessionId: j && (j.sessionId || j.SessionId), offerSDP: j && (j.offerSDP || j.OfferSDP), iceServers: ice };
+  return { sessionId, offerSDP, iceServers: ice };
 }
 
 function sendAnswer(cfg, sessionId, answerSDP) { return api(cfg, 'PATCH', `/Session/${sessionId}`, { answerSDP }); }
