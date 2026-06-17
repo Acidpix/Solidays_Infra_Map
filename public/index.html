@@ -1376,8 +1376,11 @@ async function startJpeg(deviceId,gen){if(gen!==camGen)return;
   const im=document.getElementById('cam-img');im.style.display='';
   camStatus('Codec non décodé par le navigateur (H265) — bascule en mode image…');
   const fps=(milestoneCfg&&+milestoneCfg.jpegFps)||5,period=Math.max(80,Math.round(1000/fps));
+  // Taille demandée = taille d'affichage (× pixel ratio, plafonnée) pour rester net sans sur-transcoder.
+  const stg=document.querySelector('.cam-stage'),dpr=Math.min(window.devicePixelRatio||1,2);
+  const w=Math.min(1920,Math.round((stg&&stg.clientWidth||1280)*dpr)),h=Math.min(1080,Math.round((stg&&stg.clientHeight||720)*dpr));
   const tick=async()=>{if(gen!==camGen)return;
-    try{const r=await fetch(`${API}/camera/snapshot/${encodeURIComponent(deviceId)}?server=${encodeURIComponent(camServer)}&t=${Date.now()}`);
+    try{const r=await fetch(`${API}/camera/snapshot/${encodeURIComponent(deviceId)}?server=${encodeURIComponent(camServer)}&w=${w}&h=${h}&t=${Date.now()}`);
       if(!r.ok)throw new Error((await r.text())||('HTTP '+r.status));
       const blob=await r.blob();if(gen!==camGen)return;
       const old=im.src;im.src=URL.createObjectURL(blob);if(old&&old.startsWith('blob:'))URL.revokeObjectURL(old);

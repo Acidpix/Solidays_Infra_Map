@@ -146,9 +146,8 @@ async function getSnapshot(cfg, cameraId, width, height) {
   if (!cameraId) throw new Error('cameraId (GUID caméra) requis');
   const token = await getToken(cfg);
   const url = `${restBase(cfg)}/cameras/${encodeURIComponent(cameraId)}?task=JpegGetLive`;
-  const body = {};
-  if (width) body.width = Math.round(width);
-  if (height) body.height = Math.round(height);
+  // Width/Height sont OBLIGATOIRES pour JpegGetLive (HTTP 400 sinon) → défauts si non fournis.
+  const body = { width: Math.round(width) || 1280, height: Math.round(height) || 720 };
   const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
