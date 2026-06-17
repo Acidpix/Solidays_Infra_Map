@@ -1362,6 +1362,10 @@ const camV=()=>document.getElementById('cam-video');
 // Milestone sérialise l'offre SDP et les candidats ICE en chaînes JSON ({type,sdp} / RTCIceCandidateInit).
 function parseSdp(v){if(v&&typeof v==='object')return v;try{return JSON.parse(v);}catch(_){return{type:'offer',sdp:String(v)};}}
 function parseIce(c){if(c&&typeof c==='object')return c;if(typeof c==='string'){const s=c.trim();if(s.charAt(0)==='{'){try{return JSON.parse(s);}catch(_){return null;}}if(s.indexOf('candidate:')>=0)return{candidate:s.replace(/^a=/,''),sdpMLineIndex:0};}return null;}
+// Codecs vidéo proposés par Milestone dans l'offre SDP (= ce que le serveur va réellement envoyer).
+function videoCodecsFromSdp(sdp){const lines=String(sdp||'').split(/\r?\n/);let inV=false;const out=[];const skip=['RTX','RED','ULPFEC','FLEXFEC-03','CN','TELEPHONE-EVENT'];for(const l of lines){if(l.charAt(0)==='m'&&l.startsWith('m=')){inV=l.startsWith('m=video');continue;}if(inV){const m=l.match(/^a=rtpmap:\d+\s+([A-Za-z0-9-]+)\//i);if(m){let n=m[1].toUpperCase();if(n==='HEVC')n='H265';if(skip.indexOf(n)<0&&out.indexOf(n)<0)out.push(n);}}}return out;}
+// Le navigateur sait-il décoder l'un de ces codecs ? (getCapabilities inconnu ⇒ on tente quand même)
+function browserSupportsAny(names){let caps;try{caps=RTCRtpReceiver.getCapabilities&&RTCRtpReceiver.getCapabilities('video');}catch(_){return true;}if(!caps||!caps.codecs)return true;const sup=caps.codecs.map(c=>(c.mimeType||'').toUpperCase());return names.some(n=>sup.indexOf('VIDEO/'+n)>=0);}
 function camStatus(msg,err){const s=document.getElementById('cam-status');if(!msg){s.classList.add('hide');return;}s.textContent=msg;s.classList.toggle('err',!!err);s.classList.remove('hide');}
 function setActiveTab(i){document.querySelectorAll('#cam-tabs .cam-tab').forEach((b,k)=>b.classList.toggle('on',k===i));}
 // Mode image (fallback H265) : on poll des snapshots JPEG dans une <img> au lieu de la <video> WebRTC.
@@ -1393,9 +1397,13 @@ async function startWebRTC(deviceId){await stopWebRTC();const gen=++camGen;camSt
   if(gen!==camGen)return; // un autre flux a été demandé entre-temps
   if(sess.error||!sess.offerSDP)throw new Error(sess.error||'Réponse Milestone invalide');
   camSession=sess.sessionId;
+  // Détection codec à la source : on lit ce que Milestone PROPOSE dans l'offre SDP. Si le navigateur
+  // ne sait décoder aucun des codecs offerts (typiquement H265 sur Chrome/Edge) → mode image direct.
+  const offered=videoCodecsFromSdp((parseSdp(sess.offerSDP)||{}).sdp);
+  if(offered.length&&!browserSupportsAny(offered)){console.warn('[cam] codec(s) offert(s) non supporté(s) par le navigateur :',offered.join(','),'→ mode image');return startJpeg(deviceId,gen);}
   const pc=new RTCPeerConnection({iceServers:sess.iceServers||[]});camPc=pc;
-  // Fallback H265 : si aucune image ne JOUE après le délai configuré (codec non décodé, ou ICE
-  // impossible), on bascule sur des snapshots JPEG (HTTP, sans WebRTC ni codec navigateur).
+  // Filet de sécurité : si malgré tout aucune image ne JOUE après le délai configuré (codec mal
+  // détecté, ou ICE impossible), on bascule quand même sur des snapshots JPEG (HTTP, sans codec).
   let frameSeen=false;const fbMs=(milestoneCfg&&+milestoneCfg.jpegFallbackMs)||2000;
   const fbTimer=setTimeout(()=>{if(gen===camGen&&!frameSeen)startJpeg(deviceId,gen);},fbMs);
   // Les candidats ICE locaux ne sont poussés qu'APRÈS l'envoi de l'answer : tant que Milestone n'a
