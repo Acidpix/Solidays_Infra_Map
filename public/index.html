@@ -12,8 +12,8 @@
 :root.light #topbar{background:linear-gradient(90deg,#dde2f2,#e8eaf8)}
 :root.light .tb-btn{color:var(--text2)}
 :root.light .tb-btn:hover{color:var(--text)}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;overflow:hidden}
-#app{display:flex;flex-direction:column;height:100vh}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;font-size:14px;overflow:hidden;overscroll-behavior:none}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh}
 #topbar{display:flex;align-items:center;gap:10px;padding:0 14px;height:78px;background:linear-gradient(90deg,#17122f,#1f1b57);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
 .logo{font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px;margin-right:6px;color:var(--text)}
 .logo img{height:70px;width:auto;display:block}
@@ -192,7 +192,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe 
 .cam-status.hide{display:none}
 .cam-codec{font-size:11px;font-weight:600;letter-spacing:.4px;padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.08);border:1px solid var(--border);color:#cfd6e0;white-space:nowrap}
 .cam-codec.hide{display:none}
-@media(max-width:640px){.cam-box{width:100vw;height:100vh;border-radius:0}.cam-title{display:none}}
+/* Bouton de fermeture flottant sur le flux (mobile) : toujours visible et facile à toucher,
+   même si la barre de titre du modal est masquée. */
+.cam-close-fab{display:none;position:absolute;top:10px;right:10px;z-index:6;width:44px;height:44px;border-radius:50%;border:none;background:rgba(0,0,0,.6);color:#fff;font-size:22px;line-height:1;cursor:pointer;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}
+.cam-close-fab:active{background:rgba(0,0,0,.8)}
+@media(max-width:640px){.cam-box{width:100vw;height:100vh;height:100dvh;border-radius:0}.cam-title{display:none}.cam-close-fab{display:flex}.cam-head .spX{font-size:24px;padding:4px 8px}}
 /* Group modal */
 .mo{background:var(--bg2);border:1px solid var(--border2);border-radius:12px;padding:20px 22px;width:340px}
 .mo h3{font-size:14px;font-weight:600;margin-bottom:14px}
@@ -361,6 +365,9 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 /* ── Responsive / Mobile ─────────────────────────────────────── */
 @media (max-width:768px){
   *{-webkit-tap-highlight-color:transparent}
+  /* Verrouille la page : empêche le défilement (et donc la disparition de la barre du haut)
+     quand on déplace/zoome la carte sous le doigt. */
+  html,body{position:fixed;width:100%;height:100%;overflow:hidden;overscroll-behavior:none}
   #topbar{height:auto;min-height:52px;padding:6px 10px;gap:6px;flex-wrap:nowrap}
   #topbar .logo{font-size:13px}
   #topbar .logo img{height:22px}
@@ -656,7 +663,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
             <div class="tr"><div><div class="trl">Afficher ma position GPS</div><div class="trd">Point bleu sur la carte</div></div><label class="tog"><input type="checkbox" id="dgps-loc"><span class="tsl"></span></label></div>
           </div>
         </div>
-        <div class="sps"><div class="spst">Calibration GPS</div>
+        <div class="sps" id="gps-calib-sec"><div class="spst">Calibration GPS</div>
           <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Associe votre plan à des coordonnées GPS réelles. Entrez les coins NW (haut-gauche) et SE (bas-droite) de votre plan, ou cliquez sur la carte pour les pointer.</p>
           <div class="row2" style="margin-bottom:8px">
             <div class="spf"><div class="spl">Lat NW</div><input class="spi" id="gps-nw-lat" type="number" step="0.000001" placeholder="48.866667"></div>
@@ -713,7 +720,9 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
           <div id="usr-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:14px"></div>
           <div class="spl">Ajouter un compte</div>
           <div class="row2"><div class="spf"><input class="spi" id="usr-newuser" type="text" placeholder="Identifiant"></div><div class="spf"><input class="spi" id="usr-newpass" type="password" placeholder="Mot de passe"></div></div>
+          <div class="row2" style="margin-top:8px"><div class="spf"><div class="spl">Rôle</div><select class="spi" id="usr-newrole"><option value="restricted">Restreint (lecture + affichage)</option><option value="admin">Administrateur (accès complet)</option></select></div><div class="spf"></div></div>
           <div style="display:flex;gap:10px;align-items:center;margin-top:4px"><button class="mb co" id="usr-add" type="button">+ Ajouter</button><span id="usr-addres" style="font-size:12px;color:var(--text3)"></span></div>
+          <p style="font-size:11px;color:var(--text3);margin-top:10px">Un compte <strong>restreint</strong> n'a pas accès au menu Édition ni à la configuration ; dans les Paramètres il ne voit que « Affichage » et « GPS » (sans la calibration de la carte).</p>
         </div>
       </div>
     </div>
@@ -734,6 +743,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
       <video id="cam-video" autoplay playsinline muted controls></video>
       <img id="cam-img" style="display:none" alt="">
       <div class="cam-status" id="cam-status"></div>
+      <button class="cam-close-fab" id="camXfab" aria-label="Fermer le flux">✕</button>
     </div>
   </div>
 </div>
@@ -1165,6 +1175,12 @@ wrap.addEventListener('mouseleave',()=>{if(gpsMode&&!gpsDragObj&&!gpsPending){ho
 // Début d'interaction (capture phase pour bloquer le pan Leaflet avant qu'il ne démarre)
 function gpsDown(e){
   if(!gpsMode||placeMode)return;
+  // Deuxième doigt → pinch-zoom : on annule tout déplacement d'équipement en cours et on
+  // laisse Leaflet gérer le zoom de la carte (sinon le geste déplace/redimensionne un équipement).
+  if(e.touches&&e.touches.length>1){
+    if(gpsPending||gpsDragObj){gpsPending=null;gpsDragObj=null;if(lmap&&lmap.dragging)lmap.dragging.enable();}
+    gpsEmptyDown=null;return;
+  }
   const xy=evXY(e),cRect=canvas.getBoundingClientRect();
   const csx=xy.x-cRect.left,csy=xy.y-cRect.top;
   const dig=hDIG(csx,csy);
@@ -1182,6 +1198,8 @@ wrap.addEventListener('mousedown',gpsDown,true);
 wrap.addEventListener('touchstart',gpsDown,{capture:true,passive:false});
 
 function gpsMove(e){
+  // Geste à deux doigts (pinch) : on abandonne le drag éventuel pour laisser Leaflet zoomer.
+  if(e.touches&&e.touches.length>1){if(gpsDragObj){gpsDragObj=null;gpsPending=null;if(lmap&&lmap.dragging)lmap.dragging.enable();}return;}
   if(!gpsMode||!gpsDragObj||!lmap)return;
   const xy=evXY(e),wRect=wrap.getBoundingClientRect();
   const ll=lmap.containerPointToLatLng(L.point(xy.x-wRect.left,xy.y-wRect.top));
@@ -1521,6 +1539,7 @@ function showStream(i){if(!camIds[i])return;setActiveTab(i);startWebRTC(camIds[i
 function openCam(d){if(!d.milestoneIds||!d.milestoneIds.length||!msEnabled())return;camIds=d.milestoneIds.slice();camServer=d.milestoneServer||'';document.getElementById('cam-title').textContent=d.name;const tabs=document.getElementById('cam-tabs');tabs.innerHTML=camIds.length>1?camIds.map((_,i)=>`<button class="cam-tab" data-i="${i}">Flux ${i+1}</button>`).join(''):'';tabs.querySelectorAll('.cam-tab').forEach(b=>b.addEventListener('click',()=>showStream(parseInt(b.dataset.i,10))));hideDPNow();document.getElementById('ov-cam').classList.remove('h');showStream(0);}
 function closeCam(){document.getElementById('ov-cam').classList.add('h');camGen++;stopWebRTC();camStatus(null);}
 document.getElementById('camX').addEventListener('click',closeCam);
+document.getElementById('camXfab').addEventListener('click',closeCam);
 document.getElementById('ov-cam').addEventListener('click',e=>{if(e.target.id==='ov-cam')closeCam();});
 
 /* ── Group popup ───────────────────────────────────────────── */
@@ -1754,6 +1773,7 @@ document.addEventListener('mouseup',async e=>{
 const ctxMenu=document.getElementById('ctx-menu');
 wrap.addEventListener('contextmenu',e=>{
   e.preventDefault();
+  if(!isAdmin)return; // édition (création/retrait de point) réservée aux administrateurs
   const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
   const d=hDev(sx,sy);
   const ng=document.getElementById('ctx-new-group'),cr=document.getElementById('ctx-remove'),cs1=document.getElementById('ctx-sep1');
@@ -1945,9 +1965,11 @@ async function loadUsers(){
   try{
     const me=await fetch(`${API}/auth/me`).then(r=>r.json()).catch(()=>({}));
     document.getElementById('usr-current').textContent=me.user||'—';
+    if(!isAdmin)return; // gestion des comptes réservée aux administrateurs
     const list=await fetch(`${API}/users`).then(r=>r.json());
+    if(!Array.isArray(list))return;
     const el=document.getElementById('usr-list');
-    el.innerHTML=list.map(u=>`<div class="usr-row"><span class="usr-name">${u.username}${u.current?' <span class="usr-you">(vous)</span>':''}</span>${list.length>1&&!u.current?`<button class="mb ca usr-del" data-u="${u.username}" type="button">Supprimer</button>`:''}</div>`).join('')||'<span style="font-size:12px;color:var(--text3)">Aucun compte</span>';
+    el.innerHTML=list.map(u=>{const rl=u.role==='restricted'?'restreint':'admin';return `<div class="usr-row"><span class="usr-name">${u.username}${u.current?' <span class="usr-you">(vous)</span>':''} <span class="usr-you">· ${rl}</span></span>${list.length>1&&!u.current?`<button class="mb ca usr-del" data-u="${u.username}" type="button">Supprimer</button>`:''}</div>`;}).join('')||'<span style="font-size:12px;color:var(--text3)">Aucun compte</span>';
     el.querySelectorAll('.usr-del').forEach(b=>b.addEventListener('click',()=>delUser(b.dataset.u)));
   }catch(e){}
 }
@@ -1961,8 +1983,9 @@ async function delUser(u){
 document.getElementById('usr-add').addEventListener('click',async()=>{
   const u=document.getElementById('usr-newuser').value.trim();
   const p=document.getElementById('usr-newpass').value;
+  const role=document.getElementById('usr-newrole').value;
   const res=document.getElementById('usr-addres');res.style.color='var(--text3)';res.textContent='';
-  const r=await fetch(`${API}/users`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+  const r=await fetch(`${API}/users`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p,role})});
   const j=await r.json().catch(()=>({}));
   if(r.ok){res.style.color='var(--ok)';res.textContent='✓ Compte créé';document.getElementById('usr-newuser').value='';document.getElementById('usr-newpass').value='';loadUsers();}
   else{res.style.color='var(--crit)';res.textContent='✗ '+(j.error||'Erreur');}
@@ -1997,8 +2020,25 @@ document.getElementById('icon-scale-num').addEventListener('change',e=>{
 document.querySelectorAll('.spt').forEach(t=>t.addEventListener('click',()=>{document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));document.querySelectorAll('#st-zabbix,#st-triggers,#st-display,#st-gps,#st-sync,#st-milestone,#st-users').forEach(x=>x.style.display='none');t.classList.add('on');document.getElementById('st-'+t.dataset.t).style.display='block';}));
 document.getElementById('ztest').addEventListener('click',async()=>{const cfg={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value,path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value};const res=document.getElementById('ztres');res.style.color='var(--text3)';res.textContent='Connexion…';try{const r=await fetch(`${API}/config/test`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)}).then(r=>r.json());if(r.ok){res.style.color='var(--ok)';res.textContent=`✓ Zabbix API v${r.version}`;}else{res.style.color='var(--crit)';res.textContent=`✗ ${r.error}`;}}catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}});
 document.getElementById('spsv').addEventListener('click',async()=>{
+  if(!isAdmin){ // compte restreint : Affichage uniquement (+ préférences GPS locales)
+    const d={labels:document.getElementById('dlbl').checked,halos:document.getElementById('dhalo').checked,grid:document.getElementById('dgrid').checked};
+    await fetch(`${API}/config`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({display:d})});
+    iconScale=parseFloat(document.getElementById('icon-scale').value)||1;localStorage.setItem('solidayMap.iconScale',iconScale);
+    mapLight=document.getElementById('dmaplight').checked;localStorage.setItem('solidayMap.mapLight',mapLight?'1':'0');applyMapLight();
+    const prevGps=gpsMode;
+    gpsMode=document.getElementById('dgps').checked;
+    overlayOpacity=parseFloat(document.getElementById('gps-opa').value)||0.75;
+    showUserGps=document.getElementById('dgps-loc').checked;
+    localStorage.setItem('solidayMap.gpsMode',gpsMode?'1':'0');
+    localStorage.setItem('solidayMap.overlayOpacity',String(overlayOpacity));
+    localStorage.setItem('solidayMap.gpsLoc',showUserGps?'1':'0');
+    if(gpsMode!==prevGps||gpsMode){applyGpsMode();}else if(gpsMode){updateBgOverlay();}
+    disp=d;lgnd();buildSidebar();
+    const b=document.getElementById('bsv');b.classList.add('on');setTimeout(()=>b.classList.remove('on'),2500);
+    return;
+  }
   const z={host:document.getElementById('zh').value.trim(),port:document.getElementById('zp').value||'80',path:document.getElementById('zpa').value,proto:document.getElementById('zpr').value,user:document.getElementById('zu').value,pass:document.getElementById('zpw').value,refresh:parseInt(document.getElementById('zri').value)||30,timeout:parseInt(document.getElementById('zto').value)||10,autoRefresh:document.getElementById('zar').checked};
-  const d={labels:document.getElementById('dlbl').checked,halos:document.getElementById('dhalo').checked,grid:document.getElementById('dgrid').checked};
+  const d={labels:document.getElementById('dlbl').checked,halos:document.getElementById('dhalo').checked,grid:document.getElementById('dgrid').checked,iconScale:Math.min(2.5,Math.max(0.25,parseFloat(document.getElementById('icon-scale').value)||1))};
   const sync={url:document.getElementById('syncurl').value.trim(),apiKey:document.getElementById('synckey').value};
   const milestone={username:document.getElementById('ms-user').value.trim(),password:document.getElementById('ms-pass').value,clientId:document.getElementById('ms-client').value.trim()||'GrantValidatorClient',proto:document.getElementById('ms-proto').value,port:document.getElementById('ms-port').value.trim(),macroName:document.getElementById('ms-macro').value.trim()||'{$MILESTONE_ID}',ipMacroName:document.getElementById('ms-ipmacro').value.trim()||'{$MILESTONE.IP}',stunUrl:document.getElementById('ms-stun').value.trim(),turnUrl:document.getElementById('ms-turn').value.trim(),turnUser:document.getElementById('ms-turnuser').value.trim(),turnPass:document.getElementById('ms-turnpass').value,jpegFallbackMs:parseInt(document.getElementById('ms-jpegdelay').value,10)||2000,jpegFps:parseInt(document.getElementById('ms-jpegfps').value,10)||5};
   milestoneCfg=milestone;
@@ -2183,6 +2223,13 @@ function startApp(){
       if(cfg.gps){gpsBounds=cfg.gps;if(cfg.gps.rotation!=null)overlayRotation=cfg.gps.rotation;if(cfg.gps.bearing!=null)mapBearing=cfg.gps.bearing;}
       if(cfg.mapview)savedView=cfg.mapview;
       if(cfg.display)disp={...disp,...cfg.display};
+      // L'échelle des icônes définie par l'admin (config serveur) fait office de défaut pour tout le monde.
+      if(cfg.display&&cfg.display.iconScale!=null){
+        iconScale=cfg.display.iconScale;
+        localStorage.setItem('solidayMap.iconScale',iconScale);
+        const is=document.getElementById('icon-scale');
+        if(is){is.value=iconScale;document.getElementById('icon-scale-num').value=(iconScale*100).toFixed(1);}
+      }
       milestoneCfg=cfg.milestone||null;
       if(gpsMode)applyGpsMode();
     }).catch(()=>{if(gpsMode)applyGpsMode();});
@@ -2193,6 +2240,24 @@ function startApp(){
 /* ── Authentification (porte d'entrée) ─────────────────────── */
 const ovLogin=document.getElementById('ov-login');
 let loginSetupMode=false;
+let isAdmin=true; // rôle du compte connecté ; restreint = false
+
+// Adapte l'interface au rôle : un compte restreint perd le menu Édition et ne voit,
+// dans les Paramètres, que « Affichage » et « GPS » (sans la calibration de la carte).
+function applyRole(){
+  const adm=isAdmin;
+  const dd=document.getElementById('dd-edit');if(dd)dd.style.display=adm?'':'none';
+  const mlk=document.getElementById('mob-mi-lock');if(mlk)mlk.style.display=adm?'':'none';
+  if(!adm){locked=true;const l=document.getElementById('llbl');if(l)l.textContent='Verrouillé';const ml=document.getElementById('mob-llbl');if(ml)ml.textContent='Verrouillé';}
+  document.querySelectorAll('.spt').forEach(t=>{const ok=adm||t.dataset.t==='display'||t.dataset.t==='gps';t.style.display=ok?'':'none';});
+  const calib=document.getElementById('gps-calib-sec');if(calib)calib.style.display=adm?'':'none';
+  if(!adm){ // bascule l'onglet actif sur « Affichage » (les onglets admin sont masqués)
+    document.querySelectorAll('.spt').forEach(x=>x.classList.remove('on'));
+    document.querySelectorAll('#st-zabbix,#st-triggers,#st-display,#st-gps,#st-sync,#st-milestone,#st-users').forEach(x=>x.style.display='none');
+    const dt=document.querySelector('.spt[data-t="display"]');if(dt)dt.classList.add('on');
+    document.getElementById('st-display').style.display='block';
+  }
+}
 function showLogin(hasUsers){
   loginSetupMode=!hasUsers;
   document.getElementById('login-sub').textContent=loginSetupMode?'Créez le premier compte pour démarrer':'Connectez-vous pour accéder à la carte';
@@ -2218,7 +2283,7 @@ async function submitLogin(e){
   try{
     const r=await fetch(`${API}/auth/${loginSetupMode?'setup':'login'}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:user,password:pass})});
     const j=await r.json().catch(()=>({}));
-    if(r.ok){document.getElementById('lg-pass').value='';document.getElementById('lg-pass2').value='';hideLogin();startApp();}
+    if(r.ok){isAdmin=(j.role!=='restricted');applyRole();document.getElementById('lg-pass').value='';document.getElementById('lg-pass2').value='';hideLogin();startApp();}
     else{err.textContent=j.error||'Échec de la connexion';}
   }catch(ex){err.textContent='Serveur injoignable';}
   finally{btn.disabled=false;}
@@ -2227,7 +2292,7 @@ document.getElementById('login-card').addEventListener('submit',submitLogin);
 async function checkAuth(){
   try{
     const s=await fetch(`${API}/auth/status`).then(r=>r.json());
-    if(s.authenticated){hideLogin();startApp();}
+    if(s.authenticated){isAdmin=(s.role!=='restricted');applyRole();hideLogin();startApp();}
     else{showLogin(s.hasUsers);}
   }catch(e){showLogin(true);}
 }

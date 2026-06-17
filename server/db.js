@@ -72,6 +72,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     username   TEXT PRIMARY KEY,
     pass_hash  TEXT NOT NULL,
+    role       TEXT NOT NULL DEFAULT 'admin',
     created_at INTEGER NOT NULL DEFAULT (unixepoch())
   );
 
@@ -87,6 +88,8 @@ try { db.exec('ALTER TABLE groups ADD COLUMN placed INTEGER NOT NULL DEFAULT 0')
 try { db.exec('ALTER TABLE groups ADD COLUMN source_id TEXT'); } catch (_) {}
 // Migration: add partial column (point partiellement posé — Device Assigner placedStatus='partial')
 try { db.exec('ALTER TABLE groups ADD COLUMN partial INTEGER NOT NULL DEFAULT 0'); } catch (_) {}
+// Migration: add role column to users (comptes existants → admin par défaut)
+try { db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'"); } catch (_) {}
 
 // ── Seed default categories ──────────────────────────────────
 const insertCat = db.prepare(`
@@ -225,10 +228,10 @@ module.exports = {
   },
   // Users
   getUser: (username) => db.prepare('SELECT * FROM users WHERE username=?').get(username),
-  getAllUsers: () => db.prepare('SELECT username, created_at FROM users ORDER BY created_at').all(),
+  getAllUsers: () => db.prepare('SELECT username, role, created_at FROM users ORDER BY created_at').all(),
   countUsers: () => db.prepare('SELECT COUNT(*) AS n FROM users').get().n,
-  createUser: (username, passHash) =>
-    db.prepare('INSERT INTO users (username, pass_hash) VALUES (?,?)').run(username, passHash),
+  createUser: (username, passHash, role = 'admin') =>
+    db.prepare('INSERT INTO users (username, pass_hash, role) VALUES (?,?,?)').run(username, passHash, role),
   updateUserPassword: (username, passHash) =>
     db.prepare('UPDATE users SET pass_hash=? WHERE username=?').run(passHash, username),
   deleteUser: (username) => db.prepare('DELETE FROM users WHERE username=?').run(username),

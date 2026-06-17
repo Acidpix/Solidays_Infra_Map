@@ -94,7 +94,8 @@ fetchDevices().then(scheduleRefresh);
 // initiale côté client) et si la requête courante est authentifiée.
 router.get('/auth/status', (req, res) => {
   const session = auth.getSession(auth.tokenFromReq(req));
-  res.json({ hasUsers: db.countUsers() > 0, authenticated: !!session, user: session ? session.username : null });
+  const role = session ? (db.getUser(session.username) || {}).role || null : null;
+  res.json({ hasUsers: db.countUsers() > 0, authenticated: !!session, user: session ? session.username : null, role });
 });
 
 // Création du tout premier compte — autorisée uniquement tant qu'aucun compte n'existe.
@@ -104,9 +105,9 @@ router.post('/auth/setup', (req, res) => {
   const password = String((req.body || {}).password || '');
   if (username.length < 3) return res.status(400).json({ error: 'Identifiant trop court (3 caractères min.)' });
   if (password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (6 caractères min.)' });
-  db.createUser(username, auth.hashPassword(password));
+  db.createUser(username, auth.hashPassword(password), 'admin'); // premier compte = administrateur
   auth.setSessionCookie(res, auth.createSession(username));
-  res.json({ ok: true, user: username });
+  res.json({ ok: true, user: username, role: 'admin' });
 });
 
 router.post('/auth/login', (req, res) => {
@@ -116,7 +117,7 @@ router.post('/auth/login', (req, res) => {
   if (!u || !auth.verifyPassword(password, u.pass_hash))
     return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect' });
   auth.setSessionCookie(res, auth.createSession(username));
-  res.json({ ok: true, user: username });
+  res.json({ ok: true, user: username, role: u.role });
 });
 
 router.post('/auth/logout', (req, res) => {
@@ -128,24 +129,35 @@ router.post('/auth/logout', (req, res) => {
 // ── À partir d'ici, toute route exige une session valide ──────
 router.use(auth.requireAuth);
 
-router.get('/auth/me', (req, res) => res.json({ user: req.user }));
+// Réserve une route aux administrateurs (les comptes restreints reçoivent 403).
+function requireAdmin(req, res, next) {
+  const u = db.getUser(req.user);
+  if (!u || u.role !== 'admin') return res.status(403).json({ error: 'Action réservée aux administrateurs' });
+  next();
+}
 
-/* ── UTILISATEURS (gestion des comptes) ───────────────────── */
-router.get('/users', (req, res) => {
-  res.json(db.getAllUsers().map(u => ({ username: u.username, created_at: u.created_at, current: u.username === req.user })));
+router.get('/auth/me', (req, res) => {
+  const u = db.getUser(req.user) || {};
+  res.json({ user: req.user, role: u.role || null });
 });
 
-router.post('/users', (req, res) => {
+/* ── UTILISATEURS (gestion des comptes — admin uniquement) ── */
+router.get('/users', requireAdmin, (req, res) => {
+  res.json(db.getAllUsers().map(u => ({ username: u.username, role: u.role, created_at: u.created_at, current: u.username === req.user })));
+});
+
+router.post('/users', requireAdmin, (req, res) => {
   const username = String((req.body || {}).username || '').trim();
   const password = String((req.body || {}).password || '');
+  const role = (req.body || {}).role === 'restricted' ? 'restricted' : 'admin';
   if (username.length < 3) return res.status(400).json({ error: 'Identifiant trop court (3 caractères min.)' });
   if (password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (6 caractères min.)' });
   if (db.getUser(username)) return res.status(409).json({ error: 'Cet identifiant existe déjà' });
-  db.createUser(username, auth.hashPassword(password));
+  db.createUser(username, auth.hashPassword(password), role);
   res.json({ ok: true });
 });
 
-router.patch('/users/:username/password', (req, res) => {
+router.patch('/users/:username/password', requireAdmin, (req, res) => {
   const password = String((req.body || {}).password || '');
   if (!db.getUser(req.params.username)) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (password.length < 6) return res.status(400).json({ error: 'Mot de passe trop court (6 caractères min.)' });
@@ -153,7 +165,7 @@ router.patch('/users/:username/password', (req, res) => {
   res.json({ ok: true });
 });
 
-router.delete('/users/:username', (req, res) => {
+router.delete('/users/:username', requireAdmin, (req, res) => {
   if (!db.getUser(req.params.username)) return res.status(404).json({ error: 'Utilisateur introuvable' });
   if (db.countUsers() <= 1) return res.status(400).json({ error: 'Impossible de supprimer le dernier compte' });
   db.deleteUser(req.params.username);
@@ -170,7 +182,7 @@ router.post('/devices/refresh', async (req, res) => {
   res.json({ devices: devicesCache, lastFetch, error: fetchError });
 });
 
-router.patch('/devices/:id/position', (req, res) => {
+router.patch('/devices/:id/position', requireAdmin, (req, res) => {
   const { x, y } = req.body;
   if (x == null || y == null) return res.status(400).json({ error: 'x and y required' });
   db.upsertPosition(req.params.id, x, y);
@@ -179,7 +191,7 @@ router.patch('/devices/:id/position', (req, res) => {
   res.json({ ok: true });
 });
 
-router.delete('/devices/:id/position', (req, res) => {
+router.delete('/devices/:id/position', requireAdmin, (req, res) => {
   db.deleteDevicePosition(req.params.id);
   const dev = devicesCache.find(d => d.id === req.params.id);
   if (dev) { dev.onMap = false; delete dev.x; delete dev.y; }
@@ -191,7 +203,7 @@ router.get('/categories', (req, res) => {
   res.json(db.getAllCategories());
 });
 
-router.post('/categories', (req, res) => {
+router.post('/categories', requireAdmin, (req, res) => {
   const cat = req.body;
   if (!cat.id) cat.id = uuid();
   db.upsertCategory(cat);
@@ -199,13 +211,13 @@ router.post('/categories', (req, res) => {
   res.json(cat);
 });
 
-router.put('/categories/:id', (req, res) => {
+router.put('/categories/:id', requireAdmin, (req, res) => {
   db.upsertCategory({ ...req.body, id: req.params.id });
   recategorize();
   res.json({ ok: true });
 });
 
-router.delete('/categories/:id', (req, res) => {
+router.delete('/categories/:id', requireAdmin, (req, res) => {
   db.deleteCategory(req.params.id);
   recategorize();
   res.json({ ok: true });
@@ -216,7 +228,7 @@ router.get('/groups', (req, res) => {
   res.json(db.getAllGroups());
 });
 
-router.post('/groups', (req, res) => {
+router.post('/groups', requireAdmin, (req, res) => {
   const { name, x, y, deviceIds = [], placed = 0 } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   const id = uuid();
@@ -224,14 +236,14 @@ router.post('/groups', (req, res) => {
   res.json({ id, name, x: x || 0.5, y: y || 0.5, deviceIds, disabled: 0, placed: placed ? 1 : 0, partial: 0 });
 });
 
-router.put('/groups/:id', (req, res) => {
+router.put('/groups/:id', requireAdmin, (req, res) => {
   const { name, x, y, deviceIds = [], disabled, placed, partial } = req.body;
   if (!name) return res.status(400).json({ error: 'name required' });
   db.updateGroup(req.params.id, name, x, y, deviceIds, disabled, placed, partial);
   res.json({ ok: true });
 });
 
-router.delete('/groups/:id', (req, res) => {
+router.delete('/groups/:id', requireAdmin, (req, res) => {
   db.deleteGroup(req.params.id);
   res.json({ ok: true });
 });
@@ -251,6 +263,15 @@ router.get('/config', (req, res) => {
 });
 
 router.post('/config', (req, res) => {
+  // Comptes restreints : seul l'onglet « Affichage » est autorisé (display partagé).
+  // Toute autre clé de config (zabbix, sync, milestone, calibration GPS) est ignorée.
+  const isAdmin = (db.getUser(req.user) || {}).role === 'admin';
+  if (!isAdmin) {
+    // Fusion : un compte restreint n'envoie que labels/halos/grid — on préserve les autres
+    // clés partagées (ex. iconScale réglée par l'admin) plutôt que de les écraser.
+    if (req.body.display) db.setConfig('display', { ...(db.getConfig('display') || {}), ...req.body.display });
+    return res.json({ ok: true });
+  }
   const { zabbix: z, display } = req.body;
   if (z) {
     const existing = db.getConfig('zabbix') || {};
@@ -258,7 +279,7 @@ router.post('/config', (req, res) => {
     db.setConfig('zabbix', z);
     scheduleRefresh();
   }
-  if (display) db.setConfig('display', display);
+  if (display) db.setConfig('display', { ...(db.getConfig('display') || {}), ...display });
   if ('gps' in req.body) db.setConfig('gps', req.body.gps);
   if ('mapview' in req.body) db.setConfig('mapview', req.body.mapview);
   if ('sync' in req.body && req.body.sync) {
@@ -316,7 +337,7 @@ function isAllowedServer(ip) {
   return false;
 }
 
-router.post('/config/test', async (req, res) => {
+router.post('/config/test', requireAdmin, async (req, res) => {
   try {
     const cfg = req.body;
     const version = await zabbix.testConnection(cfg);
@@ -333,7 +354,7 @@ router.post('/config/test', async (req, res) => {
 const sessionServers = new Map(); // sessionId -> serverKey
 
 // Test d'authentification (basic user global) contre l'IP d'un serveur — bouton Paramètres.
-router.post('/camera/test', async (req, res) => {
+router.post('/camera/test', requireAdmin, async (req, res) => {
   try {
     const body = req.body || {};
     const m = db.getConfig('milestone') || {};
@@ -479,7 +500,7 @@ function syncPoints(points) {
   };
 }
 
-router.post('/sync', async (req, res) => {
+router.post('/sync', requireAdmin, async (req, res) => {
   try {
     const cfg = db.getConfig('sync') || {};
     const url = (req.body && req.body.url) || cfg.url;
@@ -539,7 +560,7 @@ router.get('/triggers', (req, res) => {
   res.json(grouped);
 });
 
-router.post('/triggers', (req, res) => {
+router.post('/triggers', requireAdmin, (req, res) => {
   const triggers = req.body;
   const flat = Array.isArray(triggers) ? triggers : Object.values(triggers).flat();
   for (const t of flat) {
@@ -551,7 +572,7 @@ router.post('/triggers', (req, res) => {
   res.json({ ok: true });
 });
 
-router.delete('/triggers/:id', (req, res) => {
+router.delete('/triggers/:id', requireAdmin, (req, res) => {
   db.deleteTrigger(req.params.id);
   evaluateAll(devicesCache);
   res.json({ ok: true });
