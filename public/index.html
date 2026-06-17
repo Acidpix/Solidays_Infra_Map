@@ -1359,9 +1359,9 @@ async function startWebRTC(deviceId){await stopWebRTC();const gen=++camGen;camSt
   if(sess.error||!sess.offerSDP)throw new Error(sess.error||'Réponse Milestone invalide');
   camSession=sess.sessionId;
   const pc=new RTCPeerConnection({iceServers:sess.iceServers||[]});camPc=pc;
-  pc.ontrack=e=>{if(gen!==camGen)return;camV().srcObject=e.streams[0];camStatus(null);};
-  pc.onicecandidate=e=>{if(e.candidate&&camSession)fetch(`${API}/camera/session/${camSession}/ice`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidates:[JSON.stringify(e.candidate.toJSON())]})}).catch(()=>{});};
-  pc.oniceconnectionstatechange=()=>{if(gen!==camGen)return;if(pc.iceConnectionState==='failed')camStatus('Connexion vidéo échouée (réseau/NAT)',true);};
+  pc.ontrack=e=>{if(gen!==camGen)return;console.log('[cam] ontrack',e.track&&e.track.kind);camV().srcObject=e.streams[0];const v=camV();v.onplaying=()=>{if(gen===camGen)camStatus(null);};if(v.play)v.play().catch(()=>{});};
+  pc.onicecandidate=e=>{if(e.candidate&&camSession){console.log('[cam] → ICE local',e.candidate.candidate);fetch(`${API}/camera/session/${camSession}/ice`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({candidates:[JSON.stringify(e.candidate.toJSON())]})}).catch(()=>{});}};
+  pc.oniceconnectionstatechange=()=>{if(gen!==camGen)return;const st=pc.iceConnectionState;console.log('[cam] iceConnectionState',st);if(st==='checking')camStatus('Négociation réseau (ICE)…');else if(st==='connected'||st==='completed')camStatus('Réception du flux…');else if(st==='failed')camStatus('Connexion ICE échouée — réseau/NAT non franchissable entre le navigateur et la caméra (TURN requis ?)',true);else if(st==='disconnected')camStatus('Connexion interrompue',true);};
   await pc.setRemoteDescription(parseSdp(sess.offerSDP));
   const ans=await pc.createAnswer();await pc.setLocalDescription(ans);
   await fetch(`${API}/camera/session/${camSession}`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({answerSDP:JSON.stringify(pc.localDescription)})});
