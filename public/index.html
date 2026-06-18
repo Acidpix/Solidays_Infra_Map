@@ -1372,9 +1372,17 @@ function fovEff(d){
 // « droite » (rgx,rgy = up tourné 90° horaire → cône circulaire à l'écran) et l'échelle px/unité-plan (Lx).
 // Dérivée de toS() → suit automatiquement zoom, overlayRotation et mapBearing en mode GPS.
 function fovBasis(rx,ry){
-  const[cx,cy]=toS(rx,ry),eps=0.0015;
-  const[ux0,uy0]=toS(rx,ry-eps);let upx=ux0-cx,upy=uy0-cy;const ul=Math.hypot(upx,upy)||1;upx/=ul;upy/=ul;
-  const[hx,hy]=toS(rx+eps,ry);const Lx=Math.hypot(hx-cx,hy-cy)/eps;
+  const[cx,cy]=toS(rx,ry);
+  // En mode GPS, toS() passe par latLngToContainerPoint() qui ARRONDIT au pixel entier : un pas de
+  // différence finie trop petit est noyé dans ce bruit de quantification (±1 px) → direction et
+  // échelle du cône qui sautent ou s'annulent selon le zoom. La transfo (rx,ry)→écran étant
+  // quasi-affine, on prend un pas large (≈ 30 px à l'écran), en différence centrée : reste exact
+  // tout en étant insensible à l'arrondi. (cf. updateGpsScale qui mesure sur tout le plan.)
+  const planPx=(scale*canvas.width)||1,eps=Math.min(0.25,Math.max(0.03,30/planPx));
+  const[uxA,uyA]=toS(rx,ry-eps),[uxB,uyB]=toS(rx,ry+eps);
+  let upx=uxA-uxB,upy=uyA-uyB;const ul=Math.hypot(upx,upy)||1;upx/=ul;upy/=ul;
+  const[hxA,hyA]=toS(rx+eps,ry),[hxB,hyB]=toS(rx-eps,ry);
+  const Lx=Math.hypot(hxA-hxB,hyA-hyB)/(2*eps);
   return{cx,cy,upx,upy,rgx:-upy,rgy:upx,Lx};
 }
 function drawFov(d,rx,ry){
@@ -1651,8 +1659,13 @@ document.getElementById('gppause').addEventListener('click',async()=>{if(!active
 document.getElementById('gpug').addEventListener('click',async()=>{if(activeGroup)await aDG(activeGroup.id);});
 
 /* ── API helpers ───────────────────────────────────────────── */
-async function loadData(){try{const[dr,gr]=await Promise.all([fetch(`${API}/devices`).then(r=>r.json()),fetch(`${API}/groups`).then(r=>r.json())]);devices=dr.devices||[];groups=gr||[];buildSidebar();updBadge();const e=dr.error;document.getElementById('sfetch').textContent=e?`⚠ ${e}`:dr.lastFetch?`Sync: ${new Date(dr.lastFetch).toLocaleTimeString()}`:'';} catch(e){console.error(e);}}
-async function apiRef(){try{const r=await fetch(`${API}/devices/refresh`,{method:'POST'}).then(r=>r.json());devices=r.devices||[];buildSidebar();updBadge();}catch(e){}}
+// Le rafraîchissement remplace les objets de `devices` : re-cible le cône en cours d'édition
+// sur le nouvel objet (mêmes id), sinon fovEdit devient orphelin → les poignées disparaissent
+// au prochain refresh. On reporte l'édition locale en cours (fovEdit.fov) pour qu'elle reste
+// affichée tant que le panneau est ouvert ; si le device a disparu, on ferme le panneau.
+function rebindFovEdit(){if(!fovEdit)return;const nd=devices.find(d=>d.id===fovEdit.id);if(nd){if(fovEdit.fov)nd.fov=fovEdit.fov;fovEdit=nd;}else closeFovPanel();}
+async function loadData(){try{const[dr,gr]=await Promise.all([fetch(`${API}/devices`).then(r=>r.json()),fetch(`${API}/groups`).then(r=>r.json())]);devices=dr.devices||[];rebindFovEdit();groups=gr||[];buildSidebar();updBadge();const e=dr.error;document.getElementById('sfetch').textContent=e?`⚠ ${e}`:dr.lastFetch?`Sync: ${new Date(dr.lastFetch).toLocaleTimeString()}`:'';} catch(e){console.error(e);}}
+async function apiRef(){try{const r=await fetch(`${API}/devices/refresh`,{method:'POST'}).then(r=>r.json());devices=r.devices||[];rebindFovEdit();buildSidebar();updBadge();}catch(e){}}
 async function aSP(id,x,y){try{await fetch(`${API}/devices/${encodeURIComponent(id)}/position`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({x,y})});}catch(e){}}
 async function aCG(name,x,y,deviceIds){const r=await fetch(`${API}/groups`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,x,y,deviceIds})}).then(r=>r.json());groups.push(r);buildSidebar();return r;}
 async function aUG(g){await fetch(`${API}/groups/${g.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(g)});}
