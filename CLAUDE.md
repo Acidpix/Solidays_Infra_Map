@@ -72,6 +72,27 @@ n'apparaît plus dans sa catégorie en haut de la sidebar (`inAnyGroup`). La sid
 et la carte partagent `groups` ; toute mutation rappelle `buildSidebar()` pour rester synchronisées.
 La création de point se fait par clic droit → « Créer un point » (le bouton « Grouper » a été retiré).
 
+### Champs de vision (cônes orientables)
+
+Les équipements directionnels (caméras, AP, ponts WAVE…) peuvent afficher un **cône de champ de
+vision** : un secteur circulaire **orientable**, à **portée** et **angle d'ouverture** réglables.
+La fonctionnalité s'active **par catégorie** (case « Champ de vision » du modal catégorie →
+`categories.fov`) ; tous les équipements posés d'une catégorie activée affichent alors un cône
+(valeurs par défaut `FOV_DEF={dir:0,angle:60,range:0.12}` jusqu'à réglage).
+
+- **Données** : paramètres par équipement dans la table `device_fov` (`dir` °, `angle` °,
+  `range` = fraction de largeur de plan, `enabled`). Fusionnés sur les devices par `applyFov()`
+  (après `applyPositions`) → `device.fov`. Endpoints `PATCH`/`DELETE /api/devices/:id/fov`.
+- **Rendu** (`index.html`) : passe `drawAllFov()` au début de `draw()` (cônes **sous** icônes/zones).
+  `fovBasis(rx,ry)` dérive de `toS()` un repère écran (vecteur « haut du plan » + échelle) → le cône
+  suit zoom, `overlayRotation` et `mapBearing` en mode GPS. `fovEff(d)` = params effectifs ou null.
+- **Édition** : clic droit → « Champ de vision… » ouvre `#fov-panel` (sliders Orientation/Portée/
+  Ouverture + case Afficher + Réinitialiser) **et** des **poignées** sur la carte (pointe = orienter +
+  portée, poignée latérale = angle). `fovApplyPointer()` recompose les params depuis le pointeur ;
+  hooks insérés dans les 6 handlers de pointeur (canvas + GPS). Persistance débouncée via `fovSave()`.
+- **Filtre** : puce « Champs de vision » (`filter.fov` / `fovVis()`) dans la légende et le menu mobile,
+  affichée si au moins une catégorie a `fov`. Persistée dans `solidayMap.filter` (localStorage).
+
 ## Backend — endpoints principaux
 
 ```
@@ -82,6 +103,8 @@ POST /api/config               Sauvegarde config
 GET  /api/alerts               Historique alertes (filtres: severity, active, depuis)
 GET  /api/map/background       Image de fond (base64)
 POST /api/map/background       Upload image de fond
+PATCH/api/devices/:id/fov      Règle le cône de champ de vision {dir,angle,range,enabled}
+DEL  /api/devices/:id/fov      Réinitialise le cône (retour aux valeurs par défaut)
 POST /api/sync                 Synchro Device Assigner : 1 groupe par point + matériel relié
 POST /api/camera/test          Teste l'auth Milestone (basic user) contre une IP serveur
 POST /api/camera/session       Crée une session WebRTC {deviceId, server(IP), streamId}
@@ -166,7 +189,7 @@ Les triggers (onglet Triggers des Paramètres) permettent de choisir métrique +
 ## Base de données
 
 Tables SQLite dans `/opt/netmap/db/netmap.db` :
-`config`, `categories`, `device_positions`, `groups`, `group_devices`, `triggers`, `alert_history`
+`config`, `categories`, `device_positions`, `device_fov`, `groups`, `group_devices`, `triggers`, `alert_history`, `users`
 
 ## Conventions
 

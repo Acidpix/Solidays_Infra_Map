@@ -27,6 +27,7 @@ async function fetchDevices() {
     devicesCache = getMockDevices();
     evaluateAll(devicesCache);
     applyPositions(devicesCache);
+    applyFov(devicesCache);
     return;
   }
   try {
@@ -35,6 +36,7 @@ async function fetchDevices() {
     const devices = await zabbix.getHosts(cfg, categories, ms.macroName || '{$MILESTONE_ID}', ms.ipMacroName || '{$MILESTONE.IP}');
     evaluateAll(devices);
     applyPositions(devices);
+    applyFov(devices);
     devicesCache = devices;
     lastFetch = Date.now();
     fetchError = null;
@@ -64,6 +66,17 @@ function applyPositions(devices) {
     } else {
       d.onMap = false;
     }
+  }
+}
+
+// Attache les paramètres de cône de champ de vision (device_fov) aux équipements.
+function applyFov(devices) {
+  const rows = db.getAllFov();
+  const fovMap = {};
+  for (const r of rows) fovMap[r.device_id] = { dir: r.dir, angle: r.angle, range: r.range, enabled: r.enabled };
+  for (const d of devices) {
+    if (fovMap[d.id]) d.fov = fovMap[d.id];
+    else delete d.fov;
   }
 }
 
@@ -195,6 +208,22 @@ router.delete('/devices/:id/position', requireAdmin, (req, res) => {
   db.deleteDevicePosition(req.params.id);
   const dev = devicesCache.find(d => d.id === req.params.id);
   if (dev) { dev.onMap = false; delete dev.x; delete dev.y; }
+  res.json({ ok: true });
+});
+
+// Cône de champ de vision : orientation (dir), portée (range), angle d'ouverture, affichage (enabled).
+router.patch('/devices/:id/fov', requireAdmin, (req, res) => {
+  const { dir, angle, range, enabled } = req.body || {};
+  const fov = db.upsertFov(req.params.id, { dir, angle, range, enabled });
+  const dev = devicesCache.find(d => d.id === req.params.id);
+  if (dev) dev.fov = fov;
+  res.json({ ok: true, fov });
+});
+
+router.delete('/devices/:id/fov', requireAdmin, (req, res) => {
+  db.deleteFov(req.params.id);
+  const dev = devicesCache.find(d => d.id === req.params.id);
+  if (dev) delete dev.fov;
   res.json({ ok: true });
 });
 

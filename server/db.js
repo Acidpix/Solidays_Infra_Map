@@ -29,6 +29,15 @@ db.exec(`
     updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
   );
 
+  CREATE TABLE IF NOT EXISTS device_fov (
+    device_id   TEXT PRIMARY KEY,
+    dir         REAL    NOT NULL DEFAULT 0,
+    angle       REAL    NOT NULL DEFAULT 60,
+    range       REAL    NOT NULL DEFAULT 0.12,
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    updated_at  INTEGER NOT NULL DEFAULT (unixepoch())
+  );
+
   CREATE TABLE IF NOT EXISTS groups (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
@@ -90,6 +99,8 @@ try { db.exec('ALTER TABLE groups ADD COLUMN source_id TEXT'); } catch (_) {}
 try { db.exec('ALTER TABLE groups ADD COLUMN partial INTEGER NOT NULL DEFAULT 0'); } catch (_) {}
 // Migration: add role column to users (comptes existants → admin par défaut)
 try { db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'"); } catch (_) {}
+// Migration: add fov column to categories (catégorie concernée par les cônes de champ de vision)
+try { db.exec('ALTER TABLE categories ADD COLUMN fov INTEGER NOT NULL DEFAULT 0'); } catch (_) {}
 
 // ── Seed default categories ──────────────────────────────────
 const insertCat = db.prepare(`
@@ -133,7 +144,7 @@ db.transaction(() => {
 
 // ── Helpers ──────────────────────────────────────────────────
 function parseCat(row) {
-  return { ...row, zabbix_groups: JSON.parse(row.zabbix_groups) };
+  return { ...row, zabbix_groups: JSON.parse(row.zabbix_groups), fov: !!row.fov };
 }
 
 module.exports = {
@@ -152,12 +163,12 @@ module.exports = {
   getAllCategories: () =>
     db.prepare('SELECT * FROM categories ORDER BY sort_order, name').all().map(parseCat),
   upsertCategory: (cat) => {
-    db.prepare(`INSERT INTO categories (id, name, color, icon, zabbix_groups, sort_order)
-      VALUES (@id, @name, @color, @icon, @zabbix_groups, @sort_order)
+    db.prepare(`INSERT INTO categories (id, name, color, icon, zabbix_groups, sort_order, fov)
+      VALUES (@id, @name, @color, @icon, @zabbix_groups, @sort_order, @fov)
       ON CONFLICT(id) DO UPDATE SET
         name=excluded.name, color=excluded.color, icon=excluded.icon,
-        zabbix_groups=excluded.zabbix_groups, sort_order=excluded.sort_order`)
-      .run({ ...cat, zabbix_groups: JSON.stringify(cat.zabbix_groups || []) });
+        zabbix_groups=excluded.zabbix_groups, sort_order=excluded.sort_order, fov=excluded.fov`)
+      .run({ ...cat, zabbix_groups: JSON.stringify(cat.zabbix_groups || []), fov: cat.fov ? 1 : 0 });
   },
   deleteCategory: (id) => db.prepare('DELETE FROM categories WHERE id=?').run(id),
 
@@ -171,6 +182,25 @@ module.exports = {
   },
   deleteDevicePosition: (device_id) =>
     db.prepare('DELETE FROM device_positions WHERE device_id=?').run(device_id),
+
+  // Champs de vision (cônes) — orientation/portée/angle par équipement
+  getAllFov: () => db.prepare('SELECT device_id, dir, angle, range, enabled FROM device_fov').all(),
+  upsertFov: (device_id, f) => {
+    const cur = db.prepare('SELECT dir, angle, range, enabled FROM device_fov WHERE device_id=?').get(device_id)
+      || { dir: 0, angle: 60, range: 0.12, enabled: 1 };
+    const dir = f.dir != null ? f.dir : cur.dir;
+    const angle = f.angle != null ? f.angle : cur.angle;
+    const range = f.range != null ? f.range : cur.range;
+    const enabled = f.enabled != null ? (f.enabled ? 1 : 0) : cur.enabled;
+    db.prepare(`INSERT INTO device_fov (device_id, dir, angle, range, enabled, updated_at)
+      VALUES (?,?,?,?,?,unixepoch())
+      ON CONFLICT(device_id) DO UPDATE SET
+        dir=excluded.dir, angle=excluded.angle, range=excluded.range,
+        enabled=excluded.enabled, updated_at=unixepoch()`)
+      .run(device_id, dir, angle, range, enabled);
+    return { dir, angle, range, enabled };
+  },
+  deleteFov: (device_id) => db.prepare('DELETE FROM device_fov WHERE device_id=?').run(device_id),
 
   // Groups
   getAllGroups: () => {

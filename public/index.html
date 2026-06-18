@@ -95,6 +95,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Segoe 
 .ctx-item:hover{background:var(--bg3)}
 .ctx-item.danger{color:var(--crit)}
 .ctx-item.danger:hover{background:rgba(226,75,74,0.1)}
+/* FoV edit panel */
+#fov-panel{position:absolute;z-index:300;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:11px 13px;width:248px;display:none;box-shadow:0 6px 24px rgba(0,0,0,0.5)}
+#fov-panel.v{display:block}
+.fovp-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.fovp-t{font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fovp-chk{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text2);cursor:pointer;margin-bottom:9px}
+.fovp-chk input{width:15px;height:15px;accent-color:var(--secondary);cursor:pointer}
+.fovp-row{display:flex;align-items:center;gap:7px;margin:7px 0;font-size:11px;color:var(--text3)}
+.fovp-row label{flex:0 0 64px;color:var(--text2)}
+.fovp-row input[type=range]{flex:1;min-width:0;accent-color:var(--secondary)}
+.fovp-row input[type=number]{flex:0 0 48px;background:var(--bg3);border:1px solid var(--border2);border-radius:5px;color:var(--text);font-size:11px;padding:3px 4px;text-align:right}
+.fovp-u{flex:0 0 10px;color:var(--text3)}
+.fovp-f{display:flex;justify-content:flex-end;gap:7px;margin-top:11px}
 /* Device popup */
 .dp{position:absolute;z-index:200;background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:13px 15px;min-width:210px;max-width:262px;pointer-events:none;opacity:0;transition:opacity .12s}
 .dp.v{opacity:1;pointer-events:auto}
@@ -536,6 +549,10 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
 <div id="ctx-menu">
   <div class="ctx-head" id="ctx-devname"></div>
   <div class="ctx-sep" id="ctx-sep1"></div>
+  <div class="ctx-item" id="ctx-fov" style="display:none">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="20" r="1.6"/><path d="M12 19 4 5a13 13 0 0 1 16 0z"/></svg>
+    Champ de vision…
+  </div>
   <div class="ctx-item danger" id="ctx-remove">
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
     Retirer de la carte
@@ -548,6 +565,16 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
 
 <!-- Device popup -->
 <div class="dp" id="dpopup"></div>
+
+<!-- FoV (champ de vision) edit panel -->
+<div id="fov-panel">
+  <div class="fovp-h"><span class="fovp-t" id="fovp-name"></span><button class="spX" id="fovp-x">✕</button></div>
+  <label class="fovp-chk"><input type="checkbox" id="fovp-on" checked><span>Afficher ce cône</span></label>
+  <div class="fovp-row"><label>Orientation</label><input type="range" id="fovp-dir" min="0" max="360" step="1"><input type="number" id="fovp-dir-n" min="0" max="360" step="1"><span class="fovp-u">°</span></div>
+  <div class="fovp-row"><label>Portée</label><input type="range" id="fovp-range" min="2" max="60" step="1"><input type="number" id="fovp-range-n" min="2" max="60" step="1"><span class="fovp-u">%</span></div>
+  <div class="fovp-row"><label>Ouverture</label><input type="range" id="fovp-angle" min="10" max="170" step="1"><input type="number" id="fovp-angle-n" min="10" max="170" step="1"><span class="fovp-u">°</span></div>
+  <div class="fovp-f"><button class="mb ca" id="fovp-reset">Réinitialiser</button><button class="mb co" id="fovp-close">Fermer</button></div>
+</div>
 
 <!-- Group popup -->
 <div class="gp" id="gpopup">
@@ -600,6 +627,10 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
         <datalist id="zbx-groups-list"></datalist>
       </div>
       <div id="cat-match-info" style="font-size:11px;color:var(--text3);margin-top:6px"></div>
+      <label class="cat-row" style="flex-direction:row;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
+        <input type="checkbox" id="cat-fov" style="width:16px;height:16px;accent-color:#378ADD;cursor:pointer">
+        <span style="font-size:13px">Champ de vision <span class="hi">(cône orientable : caméras, AP, WAVE…)</span></span>
+      </label>
     </div>
     <div class="cat-mof">
       <span id="cat-mo-saved" style="font-size:11px;color:var(--ok);opacity:0;transition:opacity .3s;margin-right:auto">✓ Sauvegardé</span>
@@ -773,17 +804,19 @@ let categories=[];
 let disp={labels:false,halos:true,grid:true};
 // Filtre d'affichage (préférence locale) : masquer les points/groupes et/ou des types d'équipement.
 // filter.types[catId]===false => type masqué ; absent ou true => visible.
-let filter={groups:true,types:{}};
-try{const _f=JSON.parse(localStorage.getItem('solidayMap.filter')||'null');if(_f&&typeof _f==='object'){filter.groups=_f.groups!==false;filter.types=_f.types||{};}}catch(e){}
+let filter={groups:true,types:{},fov:true};
+try{const _f=JSON.parse(localStorage.getItem('solidayMap.filter')||'null');if(_f&&typeof _f==='object'){filter.groups=_f.groups!==false;filter.types=_f.types||{};filter.fov=_f.fov!==false;}}catch(e){}
 function saveFilter(){localStorage.setItem('solidayMap.filter',JSON.stringify(filter));}
 function tVis(t){return filter.types[t]!==false;}
 function gVis(){return filter.groups!==false;}
+function fovVis(){return filter.fov!==false;}
 function allVis(){return gVis()&&categories.every(c=>tVis(c.id));}
 function setAllVis(v){filter.groups=v;filter.types={};if(!v)categories.forEach(c=>filter.types[c.id]=false);saveFilter();}
 // Bascule partagée entre la légende (desktop) et le menu mobile, via les data-attributes.
 function toggleFilter(ds){
   if(ds.f==='all')setAllVis(!allVis());
   else if(ds.f==='groups'){filter.groups=!gVis();saveFilter();}
+  else if(ds.f==='fov'){filter.fov=!fovVis();saveFilter();}
   else if(ds.f==='type'){filter.types[ds.t]=!tVis(ds.t);saveFilter();}
   lgnd();
 }
@@ -802,6 +835,11 @@ let dragSb=null;   // sidebar drag state {id, dev}
 let ctxTarget=null;
 let newGroupPos=null;
 let catModalId=null;
+// Champs de vision (cônes) : édition en cours, drag d'une poignée, positions écran des poignées (calculées au rendu).
+const FOV_DEF={dir:0,angle:60,range:0.12};
+let fovEdit=null;   // device dont on édite le cône (panneau ouvert)
+let fovDrag=null;   // {kind:'tip'|'angle'} pendant une manipulation directe
+let fovHandles=null;// {cx,cy,upx,upy,rgx,rgy,Lx,dir,R,tip,ang} du device édité, pour le hit-test
 
 /* ── GPS / Leaflet state ──────────────────────────────────── */
 let gpsMode=localStorage.getItem('solidayMap.gpsMode')!=='0';
@@ -1123,15 +1161,17 @@ async function clearBgImage(){try{await fetch(`${API}/map/background`,{method:'D
 function loadBgImage(){loadBgFromServer();}
 
 /* ── TYPES & Legend ────────────────────────────────────────── */
-function initTypes(cats){cats.forEach(c=>{TYPES[c.id]={label:c.name,color:c.color,icon:c.icon||c.name.charAt(0).toUpperCase()};});}
+function initTypes(cats){cats.forEach(c=>{TYPES[c.id]={label:c.name,color:c.color,icon:c.icon||c.name.charAt(0).toUpperCase(),fov:!!c.fov};});}
 // Légende interactive = filtre d'affichage. Cliquer un élément masque/affiche les points
 // ou un type d'équipement (sur la carte). Préférence persistée en localStorage.
 const PIN_ICO=`<svg class="leg-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`;
+const FOV_ICO=`<svg class="leg-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="20" r="1.6"/><path d="M12 19 4 5a13 13 0 0 1 16 0z"/></svg>`;
 function lgnd(){
   const w=document.getElementById('legend-wrap');
   let html=`<div class="leg leg-all${allVis()?'':' off'}" data-f="all" title="Tout afficher / tout masquer"><span class="leg-txt">▦ Tout</span></div>`;
   html+=`<div class="leg${gVis()?'':' off'}" data-f="groups" title="Afficher / masquer les points">${PIN_ICO}<span class="leg-txt">Points</span></div>`;
   html+=categories.map(c=>`<div class="leg${tVis(c.id)?'':' off'}" data-f="type" data-t="${c.id}" title="Afficher / masquer ce type"><div class="leg-sq" style="background:${TYPES[c.id]?.color||c.color}"></div><span class="leg-txt">${c.name}</span></div>`).join('');
+  if(categories.some(c=>c.fov))html+=`<div class="leg${fovVis()?'':' off'}" data-f="fov" title="Afficher / masquer les champs de vision">${FOV_ICO}<span class="leg-txt">Champs de vision</span></div>`;
   w.innerHTML=html;
   buildMobFilter();
 }
@@ -1143,6 +1183,7 @@ function buildMobFilter(){
   let h=row('all',allVis(),'Tout afficher');
   h+=row('groups',gVis(),'Points',PIN_ICO);
   h+=categories.map(cat=>row('type',tVis(cat.id),cat.name,`<span class="mob-fsq" style="background:${TYPES[cat.id]?.color||cat.color}"></span>`,cat.id)).join('');
+  if(categories.some(cat=>cat.fov))h+=row('fov',fovVis(),'Champs de vision');
   c.innerHTML=h;
 }
 document.getElementById('mob-filter').addEventListener('click',e=>{const el=e.target.closest('.mob-fi');if(el)toggleFilter(el.dataset);});
@@ -1183,6 +1224,7 @@ function gpsDown(e){
   }
   const xy=evXY(e),cRect=canvas.getBoundingClientRect();
   const csx=xy.x-cRect.left,csy=xy.y-cRect.top;
+  if(fovEdit&&!locked&&isAdmin){const k=fovHandleAt(csx,csy);if(k){fovDrag={kind:k};if(lmap&&lmap.dragging)lmap.dragging.disable();e.preventDefault();e.stopPropagation();return;}}
   const dig=hDIG(csx,csy);
   const g=!dig?hGrp(csx,csy):null;
   const dv=(!dig&&!g)?hDev(csx,csy):null;
@@ -1199,7 +1241,8 @@ wrap.addEventListener('touchstart',gpsDown,{capture:true,passive:false});
 
 function gpsMove(e){
   // Geste à deux doigts (pinch) : on abandonne le drag éventuel pour laisser Leaflet zoomer.
-  if(e.touches&&e.touches.length>1){if(gpsDragObj){gpsDragObj=null;gpsPending=null;if(lmap&&lmap.dragging)lmap.dragging.enable();}return;}
+  if(e.touches&&e.touches.length>1){if(gpsDragObj){gpsDragObj=null;gpsPending=null;if(lmap&&lmap.dragging)lmap.dragging.enable();}if(fovDrag){fovDrag=null;if(lmap&&lmap.dragging)lmap.dragging.enable();}return;}
+  if(fovDrag&&gpsMode){const cRect=canvas.getBoundingClientRect(),xy=evXY(e);fovApplyPointer(xy.x-cRect.left,xy.y-cRect.top);e.preventDefault();return;}
   if(!gpsMode||!gpsDragObj||!lmap)return;
   const xy=evXY(e),wRect=wrap.getBoundingClientRect();
   const ll=lmap.containerPointToLatLng(L.point(xy.x-wRect.left,xy.y-wRect.top));
@@ -1213,6 +1256,7 @@ document.addEventListener('touchmove',gpsMove,{passive:false});
 
 function gpsUp(e){
   if(!gpsMode)return;
+  if(fovDrag){fovDrag=null;if(lmap&&lmap.dragging)lmap.dragging.enable();if(fovEdit)fovSave(fovEdit);return;}
   if(!gpsPending){ // relâchement après un clic/pan sur la carte (hors équipement/groupe)
     if(gpsEmptyDown){const xy=evXY(e);const moved=Math.abs(xy.x-gpsEmptyDown.x)>5||Math.abs(xy.y-gpsEmptyDown.y)>5;gpsEmptyDown=null;if(!moved){hideGP();hideDPNow();}}
     return;
@@ -1316,6 +1360,52 @@ function toS(rx,ry){
 function toR(sx,sy){return[(sx-offX)/(canvas.width*scale),(sy-offY)/(canvas.height*scale)];}
 function hexA(h,a){return h+Math.round(a*255).toString(16).padStart(2,'0');}
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
+/* ── Champs de vision (cônes orientables) ───────────────────── */
+// Paramètres effectifs d'un cône, ou null si la catégorie ne le supporte pas / cône masqué.
+function fovEff(d){
+  const t=TYPES[d.type];if(!t||!t.fov)return null;
+  const f=d.fov||{};
+  if(f.enabled===0||f.enabled===false)return null;
+  return{dir:+(f.dir??FOV_DEF.dir),angle:+(f.angle??FOV_DEF.angle),range:+(f.range??FOV_DEF.range)};
+}
+// Base écran au point relatif (rx,ry) : vecteur unitaire « haut du plan » (upx,upy), son perpendiculaire
+// « droite » (rgx,rgy = up tourné 90° horaire → cône circulaire à l'écran) et l'échelle px/unité-plan (Lx).
+// Dérivée de toS() → suit automatiquement zoom, overlayRotation et mapBearing en mode GPS.
+function fovBasis(rx,ry){
+  const[cx,cy]=toS(rx,ry),eps=0.0015;
+  const[ux0,uy0]=toS(rx,ry-eps);let upx=ux0-cx,upy=uy0-cy;const ul=Math.hypot(upx,upy)||1;upx/=ul;upy/=ul;
+  const[hx,hy]=toS(rx+eps,ry);const Lx=Math.hypot(hx-cx,hy-cy)/eps;
+  return{cx,cy,upx,upy,rgx:-upy,rgy:upx,Lx};
+}
+function drawFov(d,rx,ry){
+  const eff=fovEff(d);if(!eff)return;
+  const b=fovBasis(rx,ry),R=eff.range*b.Lx,dir=eff.dir*Math.PI/180,half=eff.angle*Math.PI/360,N=22;
+  const pt=a=>{const c=Math.cos(a),s=Math.sin(a);return[b.cx+R*(c*b.upx+s*b.rgx),b.cy+R*(c*b.upy+s*b.rgy)];};
+  ctx.beginPath();ctx.moveTo(b.cx,b.cy);
+  for(let k=0;k<=N;k++)ctx.lineTo(...pt(dir-half+2*half*k/N));
+  ctx.closePath();
+  const col=TYPES[d.type]?.color||'#378ADD',edit=fovEdit===d;
+  ctx.fillStyle=hexA(col,edit?0.2:0.13);ctx.fill();ctx.strokeStyle=hexA(col,edit?0.75:0.5);ctx.lineWidth=edit?1.6:1.2;ctx.stroke();
+  if(edit)fovHandles={cx:b.cx,cy:b.cy,upx:b.upx,upy:b.upy,rgx:b.rgx,rgy:b.rgy,Lx:b.Lx,dir,R,tip:pt(dir),ang:pt(dir+half),col};
+}
+function drawFovHandles(){
+  const h=fovHandles;if(!h)return;
+  // ligne d'axe + poignées
+  ctx.strokeStyle=hexA(h.col,0.7);ctx.lineWidth=1.5;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(h.cx,h.cy);ctx.lineTo(h.tip[0],h.tip[1]);ctx.stroke();ctx.setLineDash([]);
+  const dot=(p,r,fill)=>{ctx.beginPath();ctx.arc(p[0],p[1],r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.stroke();};
+  dot(h.ang,5,'#EF9F27');   // poignée d'angle (latérale)
+  dot(h.tip,6,h.col);        // poignée d'orientation + portée (pointe)
+}
+function drawAllFov(){
+  fovHandles=null;
+  if(!fovVis())return;
+  for(const g of groups){
+    const members=g.deviceIds.map(id=>devices.find(d=>d.id===id)).filter(Boolean),n=members.length;
+    members.forEach((d,i)=>{if(!tVis(d.type))return;const[rx,ry]=memberPos(g,d,i,n);drawFov(d,rx,ry);});
+  }
+  for(const d of free()){if(!tVis(d.type))continue;drawFov(d,d.x,d.y);}
+  if(fovEdit&&fovHandles&&!locked)drawFovHandles();
+}
 // Point partiellement posé : actif, mais les erreurs (crit) ne sont pas affichées
 // car il est normal qu'une partie du matériel ne fonctionne pas encore.
 function gSt(g){if(g.disabled)return'disabled';const dd=g.deviceIds.map(id=>devices.find(d=>d.id===id)).filter(Boolean);if(dd.some(d=>d.status==='crit'))return g.partial?'partial':'crit';if(g.placed)return'placed';if(dd.some(d=>d.status==='warn'))return'warn';if(g.partial)return'partial';return'ok';}
@@ -1374,6 +1464,7 @@ function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   if(bgImage&&!gpsMode){ctx.save();ctx.globalAlpha=0.95;ctx.setTransform(scale,0,0,scale,offX,offY);const iw=bgImage.width,ih=bgImage.height,sw=canvas.width,sh=canvas.height,scaleImg=Math.max(sw/iw,sh/ih),iw2=iw*scaleImg,ih2=ih*scaleImg;ctx.drawImage(bgImage,(sw-iw2)/2,(sh-ih2)/2,iw2,ih2);ctx.restore();ctx.setTransform(1,0,0,1,0,0);}
   if(disp.grid&&!gpsMode){ctx.save();ctx.strokeStyle=mapLight?'rgba(0,0,0,0.08)':'rgba(255,255,255,0.03)';ctx.lineWidth=1;const gs=50*scale,ox=offX%gs,oy=offY%gs;for(let x=ox;x<canvas.width;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvas.height);ctx.stroke();}for(let y=oy;y<canvas.height;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvas.width,y);ctx.stroke();}ctx.restore();}
+  drawAllFov(); // cônes de champ de vision, sous les icônes et les zones
   const SZ=DSZ(),half=SZ/2,CR=Math.max(2,3*scale)*iconScale;
   const gZone=gVis(); // filtre « Points » : si off, on masque la zone (boîte/halo/label) mais on garde les équipements visibles
   for(const g of groups){
@@ -1775,16 +1866,18 @@ wrap.addEventListener('contextmenu',e=>{
   e.preventDefault();
   if(!isAdmin)return; // édition (création/retrait de point) réservée aux administrateurs
   const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;
-  const d=hDev(sx,sy);
-  const ng=document.getElementById('ctx-new-group'),cr=document.getElementById('ctx-remove'),cs1=document.getElementById('ctx-sep1');
+  const dFree=hDev(sx,sy),dGrp=!dFree?(hDIG(sx,sy)||{}).device:null,d=dFree||dGrp; // équipement libre ou membre d'un point
+  const ng=document.getElementById('ctx-new-group'),cr=document.getElementById('ctx-remove'),cs1=document.getElementById('ctx-sep1'),cf=document.getElementById('ctx-fov');
   if(!d){
     const[rx,ry]=toR(sx,sy);newGroupPos={x:Math.max(.02,Math.min(.97,rx)),y:Math.max(.02,Math.min(.97,ry))};
     ctxTarget=null;document.getElementById('ctx-devname').textContent='';
-    cs1.style.display='none';cr.style.display='none';ng.style.display='flex';
+    cs1.style.display='none';cr.style.display='none';cf.style.display='none';ng.style.display='flex';
     ctxMenu.style.left=e.clientX+'px';ctxMenu.style.top=e.clientY+'px';ctxMenu.style.display='block';
     return;
   }
-  ctxTarget=d;ng.style.display='none';cs1.style.display='';cr.style.display='';
+  const canFov=!!(TYPES[d.type]&&TYPES[d.type].fov);
+  if(!dFree&&!canFov)return; // membre d'un point sans cône → rien à proposer
+  ctxTarget=d;ng.style.display='none';cs1.style.display='';cr.style.display=dFree?'flex':'none';cf.style.display=canFov?'flex':'none';
   document.getElementById('ctx-devname').textContent=d.name;
   ctxMenu.style.left=e.clientX+'px';
   ctxMenu.style.top=e.clientY+'px';
@@ -1805,6 +1898,75 @@ document.getElementById('ctx-remove').addEventListener('click',async()=>{
   buildSidebar();
   ctxTarget=null;
 });
+document.getElementById('ctx-fov').addEventListener('click',()=>{ctxMenu.style.display='none';if(ctxTarget)openFovPanel(ctxTarget);});
+
+/* ── Panneau d'édition du champ de vision (cône) ───────────── */
+const fovPanel=document.getElementById('fov-panel');
+let _fovSaveTimers={};
+function fovSave(d){ // PATCH débouncé par équipement
+  clearTimeout(_fovSaveTimers[d.id]);
+  _fovSaveTimers[d.id]=setTimeout(()=>{
+    fetch(`${API}/devices/${encodeURIComponent(d.id)}/fov`,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(d.fov||{})}).catch(()=>{});
+  },250);
+}
+// Reflète d.fov dans les sliders du panneau (utilisé par la manipulation directe).
+function syncFovPanelInputs(){
+  if(!fovEdit)return;const f=fovEdit.fov||FOV_DEF;
+  const dir=Math.round(f.dir??FOV_DEF.dir),ang=Math.round(f.angle??FOV_DEF.angle),rng=Math.round((f.range??FOV_DEF.range)*100);
+  document.getElementById('fovp-dir').value=dir;document.getElementById('fovp-dir-n').value=dir;
+  document.getElementById('fovp-angle').value=ang;document.getElementById('fovp-angle-n').value=ang;
+  document.getElementById('fovp-range').value=rng;document.getElementById('fovp-range-n').value=rng;
+  document.getElementById('fovp-on').checked=!(f.enabled===0||f.enabled===false);
+}
+function openFovPanel(d){
+  fovEdit=d;
+  // valeurs initiales : cône existant ou défauts (on matérialise d.fov pour l'édition)
+  const e=fovEff(d);d.fov=d.fov||{...FOV_DEF,enabled:1};
+  if(e){d.fov.dir=e.dir;d.fov.angle=e.angle;d.fov.range=e.range;}
+  document.getElementById('fovp-name').textContent='Champ de vision — '+d.name;
+  syncFovPanelInputs();
+  // positionnement près de l'équipement (coords écran)
+  const[cx,cy]=toS(d.x??0.5,d.y??0.5);
+  let px=cx+18,py=cy-10;
+  fovPanel.classList.add('v');
+  const pw=fovPanel.offsetWidth,ph=fovPanel.offsetHeight;
+  if(px+pw>wrap.clientWidth)px=cx-pw-18;if(px<4)px=4;
+  if(py+ph>wrap.clientHeight)py=wrap.clientHeight-ph-6;if(py<4)py=4;
+  fovPanel.style.left=px+'px';fovPanel.style.top=py+'px';
+}
+function closeFovPanel(){fovEdit=null;fovDrag=null;fovPanel.classList.remove('v');}
+// Bind slider ↔ number ↔ d.fov pour un paramètre.
+function fovBind(rangeId,numId,apply){
+  const r=document.getElementById(rangeId),n=document.getElementById(numId);
+  const upd=v=>{if(!fovEdit)return;fovEdit.fov=fovEdit.fov||{...FOV_DEF};r.value=v;n.value=v;apply(+v);fovSave(fovEdit);};
+  r.addEventListener('input',e=>upd(e.target.value));
+  n.addEventListener('change',e=>{let v=+e.target.value;if(isNaN(v))return;v=Math.min(+r.max,Math.max(+r.min,v));upd(v);});
+}
+fovBind('fovp-dir','fovp-dir-n',v=>fovEdit.fov.dir=v);
+fovBind('fovp-angle','fovp-angle-n',v=>fovEdit.fov.angle=v);
+fovBind('fovp-range','fovp-range-n',v=>fovEdit.fov.range=v/100);
+document.getElementById('fovp-on').addEventListener('change',e=>{if(!fovEdit)return;fovEdit.fov=fovEdit.fov||{...FOV_DEF};fovEdit.fov.enabled=e.target.checked?1:0;fovSave(fovEdit);});
+document.getElementById('fovp-reset').addEventListener('click',async()=>{if(!fovEdit)return;const d=fovEdit;await fetch(`${API}/devices/${encodeURIComponent(d.id)}/fov`,{method:'DELETE'}).catch(()=>{});delete d.fov;d.fov={...FOV_DEF,enabled:1};syncFovPanelInputs();});
+document.getElementById('fovp-close').addEventListener('click',closeFovPanel);
+document.getElementById('fovp-x').addEventListener('click',closeFovPanel);
+
+/* ── Manipulation directe des poignées du cône ─────────────── */
+function fovHandleAt(sx,sy){if(!fovHandles)return null;const near=p=>Math.hypot(sx-p[0],sy-p[1])<=12;if(near(fovHandles.tip))return'tip';if(near(fovHandles.ang))return'angle';return null;}
+function fovApplyPointer(sx,sy){
+  const h=fovHandles;if(!h||!fovEdit)return;
+  const dx=sx-h.cx,dy=sy-h.cy,cu=dx*h.upx+dy*h.upy,cr=dx*h.rgx+dy*h.rgy;
+  const ang=Math.atan2(cr,cu); // angle horaire depuis « haut du plan », en radians
+  fovEdit.fov=fovEdit.fov||{...FOV_DEF};
+  if(fovDrag.kind==='tip'){
+    fovEdit.fov.dir=((ang*180/Math.PI)%360+360)%360;
+    fovEdit.fov.range=Math.max(0.02,Math.min(0.6,Math.hypot(cu,cr)/h.Lx));
+  }else{
+    // demi-angle = écart angulaire entre la poignée tirée et la direction courante
+    let half=Math.abs(ang-h.dir)*180/Math.PI;half=((half%360)+360)%360;if(half>180)half=360-half;
+    fovEdit.fov.angle=Math.max(10,Math.min(170,2*half));
+  }
+  syncFovPanelInputs();fovSave(fovEdit);
+}
 
 /* ── Category modal ────────────────────────────────────────── */
 function openCatModal(idOrNull){
@@ -1815,6 +1977,7 @@ function openCatModal(idOrNull){
   document.getElementById('cat-color').value=cat?.color||'#378ADD';
   document.getElementById('cat-icon').value=cat?.icon||'';
   document.getElementById('cat-groups').value=(cat?.zabbix_groups||[]).join('\n');
+  document.getElementById('cat-fov').checked=!!cat?.fov;
   document.getElementById('cat-match-info').textContent='';
   document.getElementById('cat-mo-saved').style.opacity='0';
   fetchZbxGroups();
@@ -1844,7 +2007,8 @@ document.getElementById('cat-mo-save').addEventListener('click',async()=>{
   const rawIcon=document.getElementById('cat-icon').value.trim();
   const icon=rawIcon.charAt(0).toUpperCase()||name.charAt(0).toUpperCase();
   const zbxGroups=document.getElementById('cat-groups').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  const catData={name,color,icon,zabbix_groups:zbxGroups};
+  const fov=document.getElementById('cat-fov').checked;
+  const catData={name,color,icon,zabbix_groups:zbxGroups,fov};
 
   if(catModalId){
     const existing=categories.find(c=>c.id===catModalId);
@@ -1852,12 +2016,12 @@ document.getElementById('cat-mo-save').addEventListener('click',async()=>{
     catData.sort_order=existing?.sort_order??0;
     await fetch(`${API}/categories/${catModalId}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(catData)});
     if(existing)Object.assign(existing,catData);
-    TYPES[catModalId]={label:catData.name,color:catData.color,icon:catData.icon};
+    TYPES[catModalId]={label:catData.name,color:catData.color,icon:catData.icon,fov};
   }else{
     catData.sort_order=categories.length;
     const res=await fetch(`${API}/categories`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(catData)}).then(r=>r.json());
     categories.push(res);
-    TYPES[res.id]={label:res.name,color:res.color,icon:res.icon};
+    TYPES[res.id]={label:res.name,color:res.color,icon:res.icon,fov:!!res.fov};
     triggersData[res.id]=[];
   }
   lgnd();buildSidebar();
@@ -2154,15 +2318,15 @@ document.getElementById('ov-alerts').addEventListener('click',e=>{if(e.target.id
 document.querySelectorAll('.ahf').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.ahf').forEach(x=>x.classList.remove('on'));b.classList.add('on');alertFilter=b.dataset.f;loadAlerts();}));
 
 /* ── Mouse on canvas ───────────────────────────────────────── */
-wrap.addEventListener('mousedown',e=>{if(gpsMode)return;if(e.target!==canvas)return;if(dragSb)return;e.preventDefault();mdAt={x:e.clientX,y:e.clientY};const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;const dig=hDIG(sx,sy);if(dig&&!locked){dragObj={type:'dev',ref:dig.device};return;}const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};return;}const d=hDev(sx,sy);if(d&&!locked){dragObj={type:'dev',ref:d};return;}dragging=true;dragStart={x:e.clientX-offX,y:e.clientY-offY};wrap.classList.add('grabbing');});
-document.addEventListener('mousemove',e=>{if(dragSb)return;if(gpsMode)return;if(!dragObj&&!dragging&&e.target.closest('.dp'))return;const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj){const[rx,ry]=toR(sx,sy);dragApply(dragObj,rx,ry);hideDPNow();return;}if(dragging){offX=e.clientX-dragStart.x;offY=e.clientY-dragStart.y;hideDPNow();return;}const wr=wrap.getBoundingClientRect();if(e.clientX<wr.left||e.clientX>wr.right||e.clientY<wr.top||e.clientY>wr.bottom){return;}const dig=hDIG(sx,sy);if(dig){hovered={type:'dig',ref:dig.device};wrap.style.cursor='default';return;}const g=hGrp(sx,sy),d=!g?hDev(sx,sy):null;hovered=g?{type:'group',ref:g}:d?{type:'dev',ref:d}:null;wrap.style.cursor=hovered?(locked?'pointer':'move'):'grab';});
-document.addEventListener('mouseup',async e=>{if(gpsMode)return;if(!dragging&&!dragObj&&!mdAt)return;const mv=mdAt&&(Math.abs(e.clientX-mdAt.x)>5||Math.abs(e.clientY-mdAt.y)>5);const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj&&mv){if(dragObj.type==='dev'){await dropDevice(dragObj.ref,sx,sy);}if(dragObj.type==='group')await dragCommitGroup(dragObj.ref);}dragObj=null;dragging=false;wrap.classList.remove('grabbing');mdAt=null;if(mv)return;const dig=hDIG(sx,sy);if(dig){hideGP();showDP(dig.device,sx,sy);return;}const g=hGrp(sx,sy);if(g){hideDPNow();showGP(g,sx,sy);return;}const d=hDev(sx,sy);if(d){hideGP();showDP(d,sx,sy);return;}hideDP();hideGP();});
+wrap.addEventListener('mousedown',e=>{if(gpsMode)return;if(e.target!==canvas)return;if(dragSb)return;e.preventDefault();mdAt={x:e.clientX,y:e.clientY};const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(fovEdit&&!locked&&isAdmin){const k=fovHandleAt(sx,sy);if(k){fovDrag={kind:k};return;}}const dig=hDIG(sx,sy);if(dig&&!locked){dragObj={type:'dev',ref:dig.device};return;}const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};return;}const d=hDev(sx,sy);if(d&&!locked){dragObj={type:'dev',ref:d};return;}dragging=true;dragStart={x:e.clientX-offX,y:e.clientY-offY};wrap.classList.add('grabbing');});
+document.addEventListener('mousemove',e=>{if(dragSb)return;if(gpsMode)return;if(fovDrag){const r=canvas.getBoundingClientRect();fovApplyPointer(e.clientX-r.left,e.clientY-r.top);return;}if(!dragObj&&!dragging&&e.target.closest('.dp'))return;const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj){const[rx,ry]=toR(sx,sy);dragApply(dragObj,rx,ry);hideDPNow();return;}if(dragging){offX=e.clientX-dragStart.x;offY=e.clientY-dragStart.y;hideDPNow();return;}const wr=wrap.getBoundingClientRect();if(e.clientX<wr.left||e.clientX>wr.right||e.clientY<wr.top||e.clientY>wr.bottom){return;}if(fovEdit&&!locked&&fovHandleAt(sx,sy)){wrap.style.cursor='grab';return;}const dig=hDIG(sx,sy);if(dig){hovered={type:'dig',ref:dig.device};wrap.style.cursor='default';return;}const g=hGrp(sx,sy),d=!g?hDev(sx,sy):null;hovered=g?{type:'group',ref:g}:d?{type:'dev',ref:d}:null;wrap.style.cursor=hovered?(locked?'pointer':'move'):'grab';});
+document.addEventListener('mouseup',async e=>{if(gpsMode)return;if(fovDrag){fovDrag=null;if(fovEdit)fovSave(fovEdit);mdAt=null;return;}if(!dragging&&!dragObj&&!mdAt)return;const mv=mdAt&&(Math.abs(e.clientX-mdAt.x)>5||Math.abs(e.clientY-mdAt.y)>5);const rect=canvas.getBoundingClientRect(),sx=e.clientX-rect.left,sy=e.clientY-rect.top;if(dragObj&&mv){if(dragObj.type==='dev'){await dropDevice(dragObj.ref,sx,sy);}if(dragObj.type==='group')await dragCommitGroup(dragObj.ref);}dragObj=null;dragging=false;wrap.classList.remove('grabbing');mdAt=null;if(mv)return;const dig=hDIG(sx,sy);if(dig){hideGP();showDP(dig.device,sx,sy);return;}const g=hGrp(sx,sy);if(g){hideDPNow();showGP(g,sx,sy);return;}const d=hDev(sx,sy);if(d){hideGP();showDP(d,sx,sy);return;}hideDP();hideGP();});
 wrap.addEventListener('mouseleave',()=>{if(!dragging&&!dragObj){hovered=null;wrap.style.cursor='grab';}});
 wrap.addEventListener('wheel',e=>{if(gpsMode)return;e.preventDefault();const rect=canvas.getBoundingClientRect(),mx=e.clientX-rect.left,my=e.clientY-rect.top,f=e.deltaY<0?1.06:0.945,ns=Math.max(.2,Math.min(5,scale*f));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;},{passive:false});
 let lT=null,tapStart=null;
-wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;tapStart={x:t.clientX,y:t.clientY,time:Date.now()};if(!isMobile){const dig=hDIG(sx,sy);if(dig&&!locked)dragObj={type:'dev',ref:dig.device};else{const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};}else{const d=hDev(sx,sy);if(d&&!locked)dragObj={type:'dev',ref:d};else{dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}}};if(isMobile){dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}else{tapStart=null;}lT=Array.from(e.touches);},{passive:true});
-wrap.addEventListener('touchmove',e=>{if(e.touches.length===2&&lT&&lT.length===2){tapStart=null;const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY),pd=Math.hypot(lT[0].clientX-lT[1].clientX,lT[0].clientY-lT[1].clientY);const cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;const rect=canvas.getBoundingClientRect(),mx=cx-rect.left,my=cy-rect.top,ns=Math.max(.2,Math.min(5,scale*(d/pd)));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;}else if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;if(tapStart&&Math.hypot(t.clientX-tapStart.x,t.clientY-tapStart.y)>12)tapStart=null;if(dragObj){const[rx,ry]=toR(sx,sy);dragApply(dragObj,rx,ry);}else if(dragging){offX=t.clientX-dragStart.x;offY=t.clientY-dragStart.y;}}lT=Array.from(e.touches);},{passive:true});
-wrap.addEventListener('touchend',e=>{if(dragObj){if(dragObj.type==='dev')aSP(dragObj.ref.id,dragObj.ref.x,dragObj.ref.y);if(dragObj.type==='group')dragCommitGroup(dragObj.ref);}const wasDragging=dragging;dragging=false;dragObj=null;lT=null;
+wrap.addEventListener('touchstart',e=>{if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;tapStart={x:t.clientX,y:t.clientY,time:Date.now()};if(fovEdit&&!locked&&isAdmin){const k=fovHandleAt(sx,sy);if(k){fovDrag={kind:k};tapStart=null;lT=Array.from(e.touches);return;}}if(!isMobile){const dig=hDIG(sx,sy);if(dig&&!locked)dragObj={type:'dev',ref:dig.device};else{const g=hGrp(sx,sy);if(g&&!locked){const[rx,ry]=toR(sx,sy);dragObj={type:'group',ref:g,last:[rx,ry]};}else{const d=hDev(sx,sy);if(d&&!locked)dragObj={type:'dev',ref:d};else{dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}}};if(isMobile){dragging=true;dragStart={x:t.clientX-offX,y:t.clientY-offY};}}else{tapStart=null;}lT=Array.from(e.touches);},{passive:true});
+wrap.addEventListener('touchmove',e=>{if(e.touches.length===2&&lT&&lT.length===2){tapStart=null;const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY),pd=Math.hypot(lT[0].clientX-lT[1].clientX,lT[0].clientY-lT[1].clientY);const cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;const rect=canvas.getBoundingClientRect(),mx=cx-rect.left,my=cy-rect.top,ns=Math.max(.2,Math.min(5,scale*(d/pd)));offX=mx-(mx-offX)*(ns/scale);offY=my-(my-offY)*(ns/scale);scale=ns;}else if(e.touches.length===1){const t=e.touches[0],rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;if(fovDrag){fovApplyPointer(sx,sy);lT=Array.from(e.touches);return;}if(tapStart&&Math.hypot(t.clientX-tapStart.x,t.clientY-tapStart.y)>12)tapStart=null;if(dragObj){const[rx,ry]=toR(sx,sy);dragApply(dragObj,rx,ry);}else if(dragging){offX=t.clientX-dragStart.x;offY=t.clientY-dragStart.y;}}lT=Array.from(e.touches);},{passive:true});
+wrap.addEventListener('touchend',e=>{if(fovDrag){fovDrag=null;if(fovEdit)fovSave(fovEdit);tapStart=null;lT=null;return;}if(dragObj){if(dragObj.type==='dev')aSP(dragObj.ref.id,dragObj.ref.x,dragObj.ref.y);if(dragObj.type==='group')dragCommitGroup(dragObj.ref);}const wasDragging=dragging;dragging=false;dragObj=null;lT=null;
 if(tapStart&&e.changedTouches.length===1&&(Date.now()-tapStart.time)<400){const t=e.changedTouches[0];if(Math.hypot(t.clientX-tapStart.x,t.clientY-tapStart.y)<15){const rect=canvas.getBoundingClientRect(),sx=t.clientX-rect.left,sy=t.clientY-rect.top;const dig=hDIG(sx,sy);if(dig)showDP(dig.device,sx,sy);else{const g=hGrp(sx,sy);if(g)showGP(g,sx,sy);else{const d=hDev(sx,sy);if(d)showDP(d,sx,sy);else{hideDPNow();hideGP();}}}}}
 tapStart=null;},{passive:true});
 
