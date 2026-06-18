@@ -618,7 +618,7 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
         </div>
         <div class="cat-row">
           <div class="cat-lbl">Icône <span class="hi">(1 caractère)</span></div>
-          <input class="cat-inp" id="cat-icon" type="text" maxlength="2" placeholder="R" style="text-transform:uppercase">
+          <input class="cat-inp" id="cat-icon" type="text" maxlength="3" placeholder="R" style="text-transform:uppercase">
         </div>
       </div>
       <div class="cat-row">
@@ -1188,7 +1188,7 @@ function buildMobFilter(){
 }
 document.getElementById('mob-filter').addEventListener('click',e=>{const el=e.target.closest('.mob-fi');if(el)toggleFilter(el.dataset);});
 function devIcon(d){return(TYPES[d.type]?.icon||d.type.charAt(0)).toUpperCase();}
-function iconFontSize(ico){const two=ico.length>1;return Math.max(two?6:9,(two?8:11)*scale)*iconScale;}
+function iconFontSize(ico){const n=ico.length;const min=n>=3?5:n===2?6:9;const base=n>=3?6.5:n===2?8:11;return Math.max(min,base*scale)*iconScale;}
 
 /* ── Canvas setup ──────────────────────────────────────────── */
 const wrap=document.getElementById('canvas-wrap'),canvas=document.getElementById('map-canvas'),ctx=canvas.getContext('2d');
@@ -2005,7 +2005,7 @@ document.getElementById('cat-mo-save').addEventListener('click',async()=>{
   if(!name)return;
   const color=document.getElementById('cat-color').value;
   const rawIcon=document.getElementById('cat-icon').value.trim();
-  const icon=rawIcon.charAt(0).toUpperCase()||name.charAt(0).toUpperCase();
+  const icon=rawIcon.slice(0,3).toUpperCase()||name.charAt(0).toUpperCase();
   const zbxGroups=document.getElementById('cat-groups').value.split('\n').map(s=>s.trim()).filter(Boolean);
   const fov=document.getElementById('cat-fov').checked;
   const catData={name,color,icon,zabbix_groups:zbxGroups,fov};
