@@ -1388,7 +1388,7 @@ function drawGroupZone(bb,gc,st,g,iHG){
   ctx.fillStyle=gr;ctx.beginPath();ctx.arc(0,0,1,0,Math.PI*2);ctx.fill();
   ctx.restore();
   // Titre du point (en haut de la zone) — plus gros.
-  ctx.fillStyle=mapLight?'rgba(15,20,35,0.95)':'rgba(230,236,250,0.96)';ctx.font=`700 ${Math.max(13,16*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.name,cx,by+lblH*0.5);
+  ctx.fillStyle=mapLight?'rgba(15,20,35,0.95)':'rgba(230,236,250,0.96)';ctx.font=`800 ${Math.max(13,19*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.name,cx,by+lblH*0.5);
 }
 /* ── Champs de vision (cônes orientables) ───────────────────── */
 // Paramètres effectifs d'un cône, ou null si la catégorie ne le supporte pas / cône masqué.
