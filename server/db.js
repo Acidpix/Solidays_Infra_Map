@@ -245,6 +245,9 @@ module.exports = {
   resolveAlert: (id) => {
     db.prepare('UPDATE alert_history SET resolved_at=unixepoch() WHERE id=?').run(id);
   },
+  clearAlerts: () => {
+    return db.prepare('DELETE FROM alert_history').run();
+  },
   getAlerts: ({ limit = 200, device_id, severity, unresolved_only, days } = {}) => {
     let q = 'SELECT * FROM alert_history WHERE 1=1';
     const params = [];

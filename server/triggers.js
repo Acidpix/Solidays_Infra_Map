@@ -67,4 +67,10 @@ function evaluateAll(devices) {
   return devices;
 }
 
-module.exports = { evaluateAll, evalTrigger };
+// Vide le cache des alertes actives : après un effacement de l'historique, les
+// triggers encore en défaut seront réenregistrés au prochain cycle d'évaluation.
+function clearActiveAlerts() {
+  activeAlerts.clear();
+}
+
+module.exports = { evaluateAll, evalTrigger, clearActiveAlerts };

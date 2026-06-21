@@ -309,31 +309,36 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
 .tcadd select{background:var(--bg2);border:1px solid var(--border2);border-radius:4px;padding:5px 6px;color:var(--text);font-size:11px;outline:none}
 .tcaddbtn{padding:5px 10px;background:#378ADD;border:none;border-radius:4px;color:#fff;font-size:11px;cursor:pointer}
 .tcaddbtn:hover{opacity:.85}
-/* Alerts panel */
-.ah{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;width:740px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
-.ahh{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
-.ahh h2{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
-.ahst{display:flex;gap:14px;padding:10px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
-.ahs{display:flex;flex-direction:column;align-items:center;gap:2px}
-.ahs .v{font-size:22px;font-weight:700}
-.ahs .l{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em}
+/* Alerts panel (docké à droite, comme la sidebar) */
+#alerts-panel{width:380px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:width .2s,border-color .2s}
+#alerts-panel.closed{width:0;border-color:transparent}
+.ahh{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.ahh h2{font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ahh-acts{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.ahclr{padding:4px 9px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;white-space:nowrap;transition:all .1s}
+.ahclr:hover{background:rgba(226,75,74,0.12);border-color:var(--crit);color:var(--crit)}
+.ahst{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.ahs{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:48px}
+.ahs .v{font-size:20px;font-weight:700}
+.ahs .l{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:.05em}
 .ahs.cr .v{color:var(--crit)}.ahs.wa .v{color:var(--warn)}.ahs.ok .v{color:var(--ok)}
-.ahflt{display:flex;gap:8px;padding:10px 18px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
-.ahf{padding:4px 10px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;transition:all .1s}
+.ahflt{display:flex;gap:6px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.ahf{padding:4px 9px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;transition:all .1s}
 .ahf:hover,.ahf.on{background:var(--bg3);color:var(--text);border-color:var(--border3)}
 .ahf.cr.on{background:rgba(226,75,74,0.15);border-color:var(--crit);color:var(--crit)}
 .ahf.wa.on{background:rgba(239,159,39,0.15);border-color:var(--warn);color:var(--warn)}
 .ahbd{flex:1;overflow-y:auto}
-.ahr{display:flex;align-items:center;gap:10px;padding:8px 18px;border-bottom:1px solid var(--border);transition:background .1s}
+.ahr{display:flex;flex-direction:column;gap:4px;padding:8px 14px;border-bottom:1px solid var(--border);transition:background .1s}
 .ahr:hover{background:var(--bg3)}
 .ahr:last-child{border-bottom:none}
+.ahr-top,.ahr-bot{display:flex;align-items:center;gap:8px}
 .ahsv{font-size:9px;font-weight:700;text-transform:uppercase;padding:2px 6px;border-radius:3px;flex-shrink:0}
 .ahsv.cr{background:rgba(226,75,74,0.15);color:var(--crit)}
 .ahsv.wa{background:rgba(239,159,39,0.15);color:var(--warn)}
-.ahdev{font-size:12px;font-weight:600;width:160px;flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ahtg{font-size:12px;color:var(--text2);flex:1}
-.ahvl{font-size:11px;color:var(--text3);width:60px;flex-shrink:0;text-align:right}
-.ahtm{font-size:10px;color:var(--text3);width:130px;flex-shrink:0;text-align:right}
+.ahdev{font-size:12px;font-weight:600;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ahtg{font-size:11px;color:var(--text2);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ahvl{font-size:11px;color:var(--text3);flex-shrink:0;text-align:right}
+.ahtm{font-size:10px;color:var(--text3);flex-shrink:0;text-align:right}
 .ahrs{font-size:10px;color:var(--ok);padding:2px 6px;border-radius:3px;background:rgba(29,158,117,0.1);flex-shrink:0}
 .ahac{font-size:10px;color:var(--crit);padding:2px 6px;border-radius:3px;background:rgba(226,75,74,0.1);flex-shrink:0}
 .ahmt{padding:40px;text-align:center;color:var(--text3);font-size:13px}
@@ -392,6 +397,9 @@ textarea.cat-inp{resize:vertical;min-height:80px;font-family:inherit;font-size:1
   #sidebar{position:absolute;top:0;bottom:0;left:0;z-index:400;width:82vw;max-width:320px;box-shadow:4px 0 24px rgba(0,0,0,0.5)}
   #sidebar.closed{width:0;box-shadow:none}
   #sb-resizer{display:none}
+  /* Panneau alertes en tiroir au-dessus de la carte (à droite) */
+  #alerts-panel{position:absolute;top:0;bottom:0;right:0;z-index:400;width:90vw;max-width:380px;box-shadow:-4px 0 24px rgba(0,0,0,0.5)}
+  #alerts-panel.closed{width:0;box-shadow:none}
   #main{position:relative}
   /* FAB zoom visible */
   #mob-fab{display:flex}
@@ -510,6 +518,25 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
         <button id="mob-fab-zout" title="Zoom -"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg></button>
         <button id="mob-fab-reset" title="Vue par défaut"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg></button>
       </div>
+    </div>
+    <!-- Panneau Alertes (docké à droite, comme la sidebar à gauche) -->
+    <div id="alerts-panel" class="closed">
+      <div class="ahh">
+        <h2>🔔 Historique des alertes</h2>
+        <div class="ahh-acts">
+          <button class="ahclr" id="ahClear" title="Effacer tout l'historique des alertes">Tout effacer</button>
+          <button class="spX" id="ahX" title="Fermer">✕</button>
+        </div>
+      </div>
+      <div class="ahst" id="ahst"></div>
+      <div class="ahflt">
+        <button class="ahf on" data-f="all">Toutes</button>
+        <button class="ahf cr" data-f="crit">Critiques</button>
+        <button class="ahf wa" data-f="warn">Warnings</button>
+        <button class="ahf" data-f="active">Actives</button>
+        <button class="ahf" data-f="7d">7 derniers jours</button>
+      </div>
+      <div class="ahbd" id="ahbd"></div>
     </div>
   </div>
 
@@ -785,22 +812,6 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
       <div class="cam-status" id="cam-status"></div>
       <button class="cam-close-fab" id="camXfab" aria-label="Fermer le flux">✕</button>
     </div>
-  </div>
-</div>
-
-<!-- Alerts -->
-<div class="ov h" id="ov-alerts">
-  <div class="ah">
-    <div class="ahh"><h2>🔔 Historique des alertes</h2><button class="spX" id="ahX">✕</button></div>
-    <div class="ahst" id="ahst"></div>
-    <div class="ahflt">
-      <button class="ahf on" data-f="all">Toutes</button>
-      <button class="ahf cr" data-f="crit">Critiques</button>
-      <button class="ahf wa" data-f="warn">Warnings</button>
-      <button class="ahf" data-f="active">Actives</button>
-      <button class="ahf" data-f="7d">7 derniers jours</button>
-    </div>
-    <div class="ahbd" id="ahbd"></div>
   </div>
 </div>
 
@@ -2383,12 +2394,16 @@ function buildTgUI(){
   }
 }
 
-/* ── Alerts ────────────────────────────────────────────────── */
-async function openAlerts(){document.getElementById('ov-alerts').classList.remove('h');await loadAlerts();}
-async function loadAlerts(){const p=new URLSearchParams({limit:300});if(alertFilter==='crit')p.set('severity','crit');if(alertFilter==='warn')p.set('severity','warn');if(alertFilter==='active')p.set('unresolved_only','1');if(alertFilter==='7d')p.set('days','7');const r=await fetch(`${API}/alerts?${p}`).then(r=>r.json());const st=r.stats||{};document.getElementById('ahst').innerHTML=`<div class="ahs cr"><div class="v">${st.critical||0}</div><div class="l">Critiques</div></div><div class="ahs wa"><div class="v">${st.warning||0}</div><div class="l">Warnings</div></div><div class="ahs ok"><div class="v">${st.active||0}</div><div class="l">Actives</div></div><div class="ahs"><div class="v" style="color:var(--text2)">${st.total||0}</div><div class="l">7j total</div></div>`;const bd=document.getElementById('ahbd');if(!r.alerts||!r.alerts.length){bd.innerHTML='<div class="ahmt">Aucune alerte</div>';return;}bd.innerHTML=r.alerts.map(a=>{const dt=new Date(a.fired_at*1000).toLocaleString();const rs=a.resolved_at?`<span class="ahrs">Résolue</span>`:`<span class="ahac">Active</span>`;return`<div class="ahr"><span class="ahsv ${a.severity==='crit'?'cr':'wa'}">${a.severity==='crit'?'Crit':'Warn'}</span><span class="ahdev" title="${a.device_name}">${a.device_name}</span><span class="ahtg">${a.trigger_name}</span><span class="ahvl">${a.value||'—'}</span>${rs}<span class="ahtm">${dt}</span></div>`;}).join('');}
+/* ── Alerts (panneau docké à droite) ───────────────────────── */
+let alertsOpen=false;
+function setAlertsOpen(v){alertsOpen=v;document.getElementById('alerts-panel').classList.toggle('closed',!v);document.getElementById('btn-alerts').classList.toggle('active',v);setTimeout(resize,220);} // resize après la transition de largeur (.2s)
+async function openAlerts(){if(alertsOpen){setAlertsOpen(false);return;}setAlertsOpen(true);await loadAlerts();}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+async function loadAlerts(){const p=new URLSearchParams({limit:300});if(alertFilter==='crit')p.set('severity','crit');if(alertFilter==='warn')p.set('severity','warn');if(alertFilter==='active')p.set('unresolved_only','1');if(alertFilter==='7d')p.set('days','7');const r=await fetch(`${API}/alerts?${p}`).then(r=>r.json());const st=r.stats||{};document.getElementById('ahst').innerHTML=`<div class="ahs cr"><div class="v">${st.critical||0}</div><div class="l">Critiques</div></div><div class="ahs wa"><div class="v">${st.warning||0}</div><div class="l">Warnings</div></div><div class="ahs ok"><div class="v">${st.active||0}</div><div class="l">Actives</div></div><div class="ahs"><div class="v" style="color:var(--text2)">${st.total||0}</div><div class="l">7j total</div></div>`;const bd=document.getElementById('ahbd');if(!r.alerts||!r.alerts.length){bd.innerHTML='<div class="ahmt">Aucune alerte</div>';return;}bd.innerHTML=r.alerts.map(a=>{const dt=new Date(a.fired_at*1000).toLocaleString();const rs=a.resolved_at?`<span class="ahrs">Résolue</span>`:`<span class="ahac">Active</span>`;return`<div class="ahr"><div class="ahr-top"><span class="ahsv ${a.severity==='crit'?'cr':'wa'}">${a.severity==='crit'?'Crit':'Warn'}</span><span class="ahdev" title="${esc(a.device_name)}">${esc(a.device_name)}</span>${rs}</div><div class="ahr-bot"><span class="ahtg" title="${esc(a.trigger_name)}">${esc(a.trigger_name)}</span><span class="ahvl">${a.value?esc(a.value):'—'}</span><span class="ahtm">${dt}</span></div></div>`;}).join('');}
+async function clearAlerts(){if(!confirm("Effacer tout l'historique des alertes ? Cette action est irréversible."))return;const r=await fetch(`${API}/alerts`,{method:'DELETE'});if(!r.ok){const j=await r.json().catch(()=>({}));alert(j.error||'Effacement impossible');return;}await loadAlerts();}
 document.getElementById('btn-alerts').addEventListener('click',openAlerts);
-document.getElementById('ahX').addEventListener('click',()=>document.getElementById('ov-alerts').classList.add('h'));
-document.getElementById('ov-alerts').addEventListener('click',e=>{if(e.target.id==='ov-alerts')document.getElementById('ov-alerts').classList.add('h');});
+document.getElementById('ahX').addEventListener('click',()=>setAlertsOpen(false));
+document.getElementById('ahClear').addEventListener('click',clearAlerts);
 document.querySelectorAll('.ahf').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.ahf').forEach(x=>x.classList.remove('on'));b.classList.add('on');alertFilter=b.dataset.f;loadAlerts();}));
 
 /* ── Mouse on canvas ───────────────────────────────────────── */
@@ -2486,6 +2501,7 @@ function applyRole(){
   const adm=isAdmin;
   const dd=document.getElementById('dd-edit');if(dd)dd.style.display=adm?'':'none';
   const mlk=document.getElementById('mob-mi-lock');if(mlk)mlk.style.display=adm?'':'none';
+  const ahc=document.getElementById('ahClear');if(ahc)ahc.style.display=adm?'':'none'; // effacer l'historique : admin only
   if(!adm){locked=true;const l=document.getElementById('llbl');if(l)l.textContent='Verrouillé';const ml=document.getElementById('mob-llbl');if(ml)ml.textContent='Verrouillé';}
   document.querySelectorAll('.spt').forEach(t=>{const ok=adm||t.dataset.t==='display'||t.dataset.t==='gps';t.style.display=ok?'':'none';});
   const calib=document.getElementById('gps-calib-sec');if(calib)calib.style.display=adm?'':'none';

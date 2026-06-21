@@ -4,7 +4,7 @@ const db = require('./db');
 const zabbix = require('./zabbix');
 const milestone = require('./milestone');
 const auth = require('./auth');
-const { evaluateAll } = require('./triggers');
+const { evaluateAll, clearActiveAlerts } = require('./triggers');
 const path = require('path');
 const fs = require('fs');
 
@@ -679,6 +679,14 @@ router.get('/alerts', (req, res) => {
 router.patch('/alerts/:id/resolve', (req, res) => {
   db.resolveAlert(parseInt(req.params.id));
   res.json({ ok: true });
+});
+
+// Efface tout l'historique des alertes et réinitialise le cache des alertes
+// actives (un trigger toujours en défaut sera réenregistré au prochain cycle).
+router.delete('/alerts', requireAdmin, (req, res) => {
+  const r = db.clearAlerts();
+  clearActiveAlerts();
+  res.json({ ok: true, deleted: r.changes });
 });
 
 /* ── MAP BACKGROUND ───────────────────────────────────────── */
