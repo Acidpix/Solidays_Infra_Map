@@ -1387,8 +1387,8 @@ function drawGroupZone(bb,gc,st,g,iHG){
   gr.addColorStop(0,hexA(gc,base));gr.addColorStop(0.3,hexA(gc,base*0.78));gr.addColorStop(0.6,hexA(gc,base*0.38));gr.addColorStop(0.82,hexA(gc,base*0.15));gr.addColorStop(1,hexA(gc,0));
   ctx.fillStyle=gr;ctx.beginPath();ctx.arc(0,0,1,0,Math.PI*2);ctx.fill();
   ctx.restore();
-  // Titre du point (en haut de la zone).
-  ctx.fillStyle=mapLight?'rgba(20,25,40,0.92)':'rgba(220,227,245,0.9)';ctx.font=`600 ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.name,cx,by+lblH*0.6);
+  // Titre du point (en haut de la zone) — plus gros.
+  ctx.fillStyle=mapLight?'rgba(15,20,35,0.95)':'rgba(230,236,250,0.96)';ctx.font=`700 ${Math.max(13,16*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.name,cx,by+lblH*0.5);
 }
 /* ── Champs de vision (cônes orientables) ───────────────────── */
 // Paramètres effectifs d'un cône, ou null si la catégorie ne le supporte pas / cône masqué.
@@ -1467,7 +1467,7 @@ function memberPos(g,d,i,n){
 function gBB(g){
   const members=g.deviceIds.map(id=>devices.find(d=>d.id===id)).filter(Boolean);
   const n=members.length;
-  const lblH=Math.max(13,15*scale)*iconScale;
+  const lblH=Math.max(18,20*scale)*iconScale;
   if(!n){const[cx,cy]=toS(g.x,g.y);const es=30*iconScale;return{x:cx-es,y:cy-es,w:es*2,h:es*2,devs:[],cx,cy,empty:true,lblH};}
   const pts=members.map((d,i)=>{const[rx,ry]=memberPos(g,d,i,n);const[sx,sy]=toS(rx,ry);return{d,sx,sy};});
   const half=DSZ()/2,m=half+Math.max(8,11*scale)*iconScale;
@@ -1524,11 +1524,16 @@ function draw(){
         if((disp.labels||iHD)&&scale>0.5){ctx.fillStyle=mapLight?'rgba(20,25,50,0.85)':'rgba(200,207,225,0.8)';ctx.font=`${Math.max(8,9*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(d.name,sx,sy+hg+3*scale);}}
     }else if(gZone){ctx.fillStyle=hexA(gc,0.4);ctx.font=`${Math.max(16,20*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('+',cx,cy+lblH);}
     if(gZone){
-    // Badges de statut positionnés sur le blob (coins de l'ellipse organique, pas du rectangle).
-    const blX=bx+bw*0.19,brX=bx+bw*0.81,bgY=by+bh*0.19;
-    if(g.disabled){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(blX,bgY,br,0,Math.PI*2);ctx.fillStyle='rgba(107,114,128,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⏸',blX,bgY);}
-    else if(st==='placed'){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(brX,bgY,br,0,Math.PI*2);ctx.fillStyle='rgba(29,158,117,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',brX,bgY);}
-    else if(g.partial){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(brX,bgY,br,0,Math.PI*2);ctx.fillStyle='rgba(139,92,246,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('½',brX,bgY);}
+    // Badges de statut : flanquent le titre (selon sa largeur réelle) sans jamais le recouvrir.
+    const br=Math.max(10,12*scale)*iconScale;
+    ctx.font=`700 ${Math.max(13,16*scale)*iconScale}px 'Segoe UI',sans-serif`;
+    const htw=ctx.measureText(g.name||'').width/2+br+6,bgY=by+lblH*0.5;
+    const brX=Math.max(bx+bw*0.85,cx+htw),blX=Math.min(bx+bw*0.15,cx-htw);
+    const bf=`bold ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;
+    const badge=(px,col,gl)=>{ctx.beginPath();ctx.arc(px,bgY,br,0,Math.PI*2);ctx.fillStyle=col;ctx.fill();ctx.fillStyle='#fff';ctx.font=bf;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(gl,px,bgY);};
+    if(g.disabled)badge(blX,'rgba(107,114,128,0.9)','⏸');
+    else if(st==='placed')badge(brX,'rgba(29,158,117,0.9)','✓');
+    else if(g.partial)badge(brX,'rgba(139,92,246,0.9)','½');
     }
     ctx.globalAlpha=1;}
   for(const d of free()){if(!tVis(d.type))continue;const[sx,sy]=toS(d.x,d.y),t=TYPES[d.type]||{color:'#666'},iH=hovered&&hovered.type==='dev'&&hovered.ref===d;
