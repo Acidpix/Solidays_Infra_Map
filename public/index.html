@@ -1380,13 +1380,13 @@ function gBlob(cx,cy,rx,ry,seed){
 // Zone d'un point : forme organique en dégradé radial (fondu doux, pas de contour franc) + titre.
 function drawGroupZone(bb,gc,st,g,iHG){
   const{x:bx,y:by,w:bw,h:bh,cx,lblH,empty}=bb;
-  const ccx=bx+bw/2,ccy=by+bh/2,rx=bw/2*1.06,ry=bh/2*1.06,R=Math.max(rx,ry);
-  const seed=((g.id||0)*1.3+(g.name?g.name.length:0))%6.283;
+  const ccx=bx+bw/2,ccy=by+bh/2,rx=bw/2*1.08,ry=bh/2*1.08,R=Math.max(rx,ry,1);
+  let seed=(Number(g.id)||0)*1.3+(g.name?g.name.length:0);if(!Number.isFinite(seed))seed=0;seed%=6.283;
   // Halo pulsé pour les alertes (crit/warn) — blob plus large, dilaté/illuminé par le pouls.
-  if(!empty&&disp.halos&&(st==='crit'||st==='warn')){const p=0.5+0.5*Math.sin(pulseT*(st==='crit'?3:1.5));const f=1.12+0.09*p;gBlob(ccx,ccy,rx*f,ry*f,seed);ctx.fillStyle=hexA(gc,0.12+0.12*p);ctx.fill();}
-  // Corps en dégradé radial : opaque au centre, fondu total au bord → aucun trait de contour.
-  const base=iHG?0.30:0.20,gr=ctx.createRadialGradient(ccx,ccy,0,ccx,ccy,R);
-  gr.addColorStop(0,hexA(gc,base));gr.addColorStop(0.55,hexA(gc,base*0.6));gr.addColorStop(1,hexA(gc,0));
+  if(!empty&&disp.halos&&(st==='crit'||st==='warn')){const p=0.5+0.5*Math.sin(pulseT*(st==='crit'?3:1.5));const f=1.12+0.09*p;gBlob(ccx,ccy,rx*f,ry*f,seed);ctx.fillStyle=hexA(gc,0.16+0.16*p);ctx.fill();}
+  // Corps en dégradé radial : dense au centre, fondu total au bord → aucun trait de contour.
+  const base=iHG?0.55:0.42,gr=ctx.createRadialGradient(ccx,ccy,0,ccx,ccy,R);
+  gr.addColorStop(0,hexA(gc,base));gr.addColorStop(0.5,hexA(gc,base*0.65));gr.addColorStop(0.85,hexA(gc,base*0.22));gr.addColorStop(1,hexA(gc,0));
   gBlob(ccx,ccy,rx,ry,seed);ctx.fillStyle=gr;ctx.fill();
   // Titre du point (en haut du blob).
   ctx.fillStyle=mapLight?'rgba(20,25,40,0.92)':'rgba(220,227,245,0.9)';ctx.font=`600 ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.name,cx,by+lblH*0.6);
