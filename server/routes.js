@@ -277,6 +277,61 @@ router.delete('/groups/:id', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+/* ── EXPORT / IMPORT (positions, points, cônes, calibration) ─ */
+// Exporte la mise en page de la carte dans un JSON portable (positions des
+// équipements, points/groupes, champs de vision, calibration GPS).
+router.get('/export', requireAdmin, (req, res) => {
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    positions: db.getAllPositions(),   // [{device_id,x,y,updated_at}]
+    groups: db.getAllGroups(),         // [{id,name,x,y,deviceIds,...}]
+    fov: db.getAllFov(),               // [{device_id,dir,angle,range,enabled}]
+    gps: db.getConfig('gps') || null,  // {bounds, rotation…}
+  };
+  res.setHeader('Content-Disposition', 'attachment; filename="solidays-map.json"');
+  res.json(payload);
+});
+
+// Restaure une mise en page exportée. Fusion par id (non destructif) : les
+// positions/points/cônes absents du fichier sont conservés tels quels.
+router.post('/import', requireAdmin, (req, res) => {
+  const data = req.body || {};
+  const positions = Array.isArray(data.positions) ? data.positions : [];
+  const groups = Array.isArray(data.groups) ? data.groups : [];
+  const fov = Array.isArray(data.fov) ? data.fov : [];
+  const stats = { positions: 0, groups: 0, fov: 0 };
+
+  db.db.transaction(() => {
+    for (const p of positions) {
+      if (!p || p.device_id == null || p.x == null || p.y == null) continue;
+      db.upsertPosition(p.device_id, p.x, p.y);
+      stats.positions++;
+    }
+    for (const f of fov) {
+      if (!f || f.device_id == null) continue;
+      db.upsertFov(f.device_id, f);
+      stats.fov++;
+    }
+    const existing = new Set(db.getAllGroups().map(g => g.id));
+    for (const g of groups) {
+      if (!g || !g.id || !g.name) continue;
+      const ids = Array.isArray(g.deviceIds) ? g.deviceIds : [];
+      if (existing.has(g.id))
+        db.updateGroup(g.id, g.name, g.x, g.y, ids, g.disabled, g.placed, g.partial);
+      else
+        db.createGroup(g.id, g.name, g.x ?? 0.5, g.y ?? 0.5, ids, g.placed, g.source_id ?? null, g.partial, g.disabled);
+      stats.groups++;
+    }
+    if (data.gps && typeof data.gps === 'object') db.setConfig('gps', data.gps);
+  })();
+
+  // Réapplique sur le cache en mémoire pour que /api/devices reflète l'import.
+  applyPositions(devicesCache);
+  applyFov(devicesCache);
+  res.json({ ok: true, ...stats });
+});
+
 /* ── CONFIG ───────────────────────────────────────────────── */
 router.get('/config', (req, res) => {
   const zabbixCfg = db.getConfig('zabbix') || {};

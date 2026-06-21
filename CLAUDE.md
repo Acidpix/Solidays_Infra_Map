@@ -105,6 +105,8 @@ GET  /api/map/background       Image de fond (base64)
 POST /api/map/background       Upload image de fond
 PATCH/api/devices/:id/fov      Règle le cône de champ de vision {dir,angle,range,enabled}
 DEL  /api/devices/:id/fov      Réinitialise le cône (retour aux valeurs par défaut)
+GET  /api/export               Exporte la mise en page (positions, points, cônes, calibration GPS) en JSON
+POST /api/import               Restaure une mise en page exportée (fusion par id, non destructif)
 POST /api/sync                 Synchro Device Assigner : 1 groupe par point + matériel relié
 POST /api/camera/test          Teste l'auth Milestone (basic user) contre une IP serveur
 POST /api/camera/session       Crée une session WebRTC {deviceId, server(IP), streamId}

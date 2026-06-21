@@ -711,6 +711,15 @@ input.set-num::-webkit-outer-spin-button,input.set-num::-webkit-inner-spin-butto
           </div>
           <div id="gps-bounds-info" style="font-size:11px;color:var(--text3)"></div>
         </div>
+        <div class="sps"><div class="spst">Sauvegarde / Restauration</div>
+          <p style="font-size:12px;color:var(--text3);margin-bottom:12px">Exporte la mise en page de la carte (positions des équipements, points, champs de vision, calibration GPS) dans un fichier JSON, ou restaure une sauvegarde. La restauration fusionne par identifiant (non destructif).</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <button class="mb co" id="exp-btn" type="button">⬇ Exporter en JSON</button>
+            <button class="mb co" id="imp-btn" type="button">⬆ Importer un JSON</button>
+            <input type="file" id="imp-file" accept="application/json,.json" style="display:none">
+            <span id="exp-res" style="font-size:12px;color:var(--text3)"></span>
+          </div>
+        </div>
       </div>
       <div id="st-sync" style="display:none">
         <div class="sps"><div class="spst">Source externe — Device Assigner</div>
@@ -1360,6 +1369,28 @@ function toS(rx,ry){
 function toR(sx,sy){return[(sx-offX)/(canvas.width*scale),(sy-offY)/(canvas.height*scale)];}
 function hexA(h,a){return h+Math.round(a*255).toString(16).padStart(2,'0');}
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
+// Tracé d'un « blob » organique lissé (ellipse déformée de façon déterministe via seed), passant par les milieux d'arêtes.
+function gBlob(cx,cy,rx,ry,seed){
+  const N=12,pts=[];
+  for(let i=0;i<N;i++){const a=i/N*Math.PI*2;const w=1+0.13*Math.sin(a*3+seed)+0.07*Math.sin(a*5-seed*1.7);pts.push([cx+Math.cos(a)*rx*w,cy+Math.sin(a)*ry*w]);}
+  const pm=pts[N-1],c0=pts[0];ctx.beginPath();ctx.moveTo((pm[0]+c0[0])/2,(pm[1]+c0[1])/2);
+  for(let i=0;i<N;i++){const cur=pts[i],nxt=pts[(i+1)%N];ctx.quadraticCurveTo(cur[0],cur[1],(cur[0]+nxt[0])/2,(cur[1]+nxt[1])/2);}
+  ctx.closePath();
+}
+// Zone d'un point : forme organique en dégradé radial (fondu doux, pas de contour franc) + titre.
+function drawGroupZone(bb,gc,st,g,iHG){
+  const{x:bx,y:by,w:bw,h:bh,cx,lblH,empty}=bb;
+  const ccx=bx+bw/2,ccy=by+bh/2,rx=bw/2*1.06,ry=bh/2*1.06,R=Math.max(rx,ry);
+  const seed=((g.id||0)*1.3+(g.name?g.name.length:0))%6.283;
+  // Halo pulsé pour les alertes (crit/warn) — blob plus large, dilaté/illuminé par le pouls.
+  if(!empty&&disp.halos&&(st==='crit'||st==='warn')){const p=0.5+0.5*Math.sin(pulseT*(st==='crit'?3:1.5));const f=1.12+0.09*p;gBlob(ccx,ccy,rx*f,ry*f,seed);ctx.fillStyle=hexA(gc,0.12+0.12*p);ctx.fill();}
+  // Corps en dégradé radial : opaque au centre, fondu total au bord → aucun trait de contour.
+  const base=iHG?0.30:0.20,gr=ctx.createRadialGradient(ccx,ccy,0,ccx,ccy,R);
+  gr.addColorStop(0,hexA(gc,base));gr.addColorStop(0.55,hexA(gc,base*0.6));gr.addColorStop(1,hexA(gc,0));
+  gBlob(ccx,ccy,rx,ry,seed);ctx.fillStyle=gr;ctx.fill();
+  // Titre du point (en haut du blob).
+  ctx.fillStyle=mapLight?'rgba(20,25,40,0.92)':'rgba(220,227,245,0.9)';ctx.font=`600 ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.name,cx,by+lblH*0.6);
+}
 /* ── Champs de vision (cônes orientables) ───────────────────── */
 // Paramètres effectifs d'un cône, ou null si la catégorie ne le supporte pas / cône masqué.
 function fovEff(d){
@@ -1477,14 +1508,11 @@ function draw(){
   const gZone=gVis(); // filtre « Points » : si off, on masque la zone (boîte/halo/label) mais on garde les équipements visibles
   for(const g of groups){
     const st=gSt(g),bb=gBB(g);const{x:bx,y:by,w:bw,h:bh,devs,cx,cy,lblH,empty}=bb;
-    const gcr=GCR();
     const gc={ok:TYPES[devs[0]?.d?.type]?.color||'#378ADD',placed:'#1D9E75',warn:'#EF9F27',crit:'#E24B4A',disabled:'#6b7280',partial:'#8B5CF6'}[st]||'#6b7280';
     const iHG=hovered&&hovered.type==='group'&&hovered.ref===g;
     if(g.disabled)ctx.globalAlpha=0.45;
     if(gZone){
-    if(!empty&&disp.halos&&(st==='crit'||st==='warn')){const p=0.5+0.5*Math.sin(pulseT*(st==='crit'?3:1.5));const p2=6+p*10;rr(bx-p2,by-p2,bw+p2*2,bh+p2*2,gcr+5);ctx.fillStyle=hexA(gc,0.15+0.12*p);ctx.fill();ctx.strokeStyle=hexA(gc,0.45+0.3*p);ctx.lineWidth=2;ctx.stroke();}
-    rr(bx,by,bw,bh,gcr);ctx.fillStyle=hexA(gc,0.1);ctx.fill();ctx.strokeStyle=g.disabled?'rgba(107,114,128,0.5)':hexA(gc,iHG?0.9:0.45);ctx.lineWidth=iHG?2:1.5;if(g.disabled||empty){ctx.setLineDash([4,3]);}ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle=mapLight?'rgba(20,25,40,0.9)':'rgba(220,227,245,0.85)';ctx.font=`600 ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.name,cx,by+lblH/2);
+    drawGroupZone(bb,gc,st,g,iHG);
     }
     if(!empty){
       const SZg=DSZ(),hg=SZg/2,CRg=Math.max(2,3*scale)*iconScale;
@@ -1497,9 +1525,11 @@ function draw(){
         if((disp.labels||iHD)&&scale>0.5){ctx.fillStyle=mapLight?'rgba(20,25,50,0.85)':'rgba(200,207,225,0.8)';ctx.font=`${Math.max(8,9*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='top';ctx.fillText(d.name,sx,sy+hg+3*scale);}}
     }else if(gZone){ctx.fillStyle=hexA(gc,0.4);ctx.font=`${Math.max(16,20*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('+',cx,cy+lblH);}
     if(gZone){
-    if(g.disabled){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(bx+br,by+br,br,0,Math.PI*2);ctx.fillStyle='rgba(107,114,128,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⏸',bx+br,by+br);}
-    else if(st==='placed'){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(bx+bw-br,by+br,br,0,Math.PI*2);ctx.fillStyle='rgba(29,158,117,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',bx+bw-br,by+br);}
-    else if(g.partial){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(bx+bw-br,by+br,br,0,Math.PI*2);ctx.fillStyle='rgba(139,92,246,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('½',bx+bw-br,by+br);}
+    // Badges de statut positionnés sur le blob (coins de l'ellipse organique, pas du rectangle).
+    const blX=bx+bw*0.19,brX=bx+bw*0.81,bgY=by+bh*0.19;
+    if(g.disabled){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(blX,bgY,br,0,Math.PI*2);ctx.fillStyle='rgba(107,114,128,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('⏸',blX,bgY);}
+    else if(st==='placed'){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(brX,bgY,br,0,Math.PI*2);ctx.fillStyle='rgba(29,158,117,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✓',brX,bgY);}
+    else if(g.partial){const br=Math.max(9,11*scale)*iconScale;ctx.beginPath();ctx.arc(brX,bgY,br,0,Math.PI*2);ctx.fillStyle='rgba(139,92,246,0.85)';ctx.fill();ctx.fillStyle='#fff';ctx.font=`bold ${Math.max(8,10*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('½',brX,bgY);}
     }
     ctx.globalAlpha=1;}
   for(const d of free()){if(!tVis(d.type))continue;const[sx,sy]=toS(d.x,d.y),t=TYPES[d.type]||{color:'#666'},iH=hovered&&hovered.type==='dev'&&hovered.ref===d;
@@ -2268,6 +2298,33 @@ document.getElementById('syncbtn').addEventListener('click',async()=>{
     rep.innerHTML=h;
     await loadData();
   }catch(e){res.style.color='var(--crit)';res.textContent='✗ Serveur injoignable';}
+});
+
+// Export / import de la mise en page (positions, points, cônes, calibration GPS)
+document.getElementById('exp-btn').addEventListener('click',async()=>{
+  const res=document.getElementById('exp-res');
+  try{
+    const data=await fetch(`${API}/export`).then(r=>{if(!r.ok)throw 0;return r.json()});
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+    a.download=`solidays-map-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();URL.revokeObjectURL(a.href);
+    res.style.color='var(--ok)';res.textContent='✓ Exporté';
+  }catch(e){res.style.color='var(--crit)';res.textContent='✗ Échec de l\'export';}
+});
+document.getElementById('imp-btn').addEventListener('click',()=>document.getElementById('imp-file').click());
+document.getElementById('imp-file').addEventListener('change',async e=>{
+  const file=e.target.files[0];if(!file)return;
+  const res=document.getElementById('exp-res');
+  res.style.color='var(--text3)';res.textContent='Import…';
+  try{
+    const data=JSON.parse(await file.text());
+    const r=await fetch(`${API}/import`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}).then(r=>r.json());
+    if(r.error){res.style.color='var(--crit)';res.textContent='✗ '+r.error;return;}
+    res.style.color='var(--ok)';res.textContent=`✓ ${r.positions} positions · ${r.groups} points · ${r.fov} cônes — rechargement…`;
+    setTimeout(()=>location.reload(),900);
+  }catch(err){res.style.color='var(--crit)';res.textContent='✗ Fichier invalide';}
+  finally{e.target.value='';}
 });
 
 function buildClrEd(){
