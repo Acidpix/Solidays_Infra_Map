@@ -1369,26 +1369,25 @@ function toS(rx,ry){
 function toR(sx,sy){return[(sx-offX)/(canvas.width*scale),(sy-offY)/(canvas.height*scale)];}
 function hexA(h,a){return h+Math.round(a*255).toString(16).padStart(2,'0');}
 function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();}
-// Tracé d'un « blob » organique lissé (ellipse déformée de façon déterministe via seed), passant par les milieux d'arêtes.
-function gBlob(cx,cy,rx,ry,seed){
-  const N=12,pts=[];
-  for(let i=0;i<N;i++){const a=i/N*Math.PI*2;const w=1+0.13*Math.sin(a*3+seed)+0.07*Math.sin(a*5-seed*1.7);pts.push([cx+Math.cos(a)*rx*w,cy+Math.sin(a)*ry*w]);}
-  const pm=pts[N-1],c0=pts[0];ctx.beginPath();ctx.moveTo((pm[0]+c0[0])/2,(pm[1]+c0[1])/2);
-  for(let i=0;i<N;i++){const cur=pts[i],nxt=pts[(i+1)%N];ctx.quadraticCurveTo(cur[0],cur[1],(cur[0]+nxt[0])/2,(cur[1]+nxt[1])/2);}
-  ctx.closePath();
-}
-// Zone d'un point : forme organique en dégradé radial (fondu doux, pas de contour franc) + titre.
+// Zone d'un point : halo radial elliptique au foyer décalé (organique, dense au centre,
+// totalement fondu au bord → aucune délimitation) + titre. Pas de découpe de tracé.
 function drawGroupZone(bb,gc,st,g,iHG){
   const{x:bx,y:by,w:bw,h:bh,cx,lblH,empty}=bb;
-  const ccx=bx+bw/2,ccy=by+bh/2,rx=bw/2*1.08,ry=bh/2*1.08,R=Math.max(rx,ry,1);
+  const ccx=bx+bw/2,ccy=by+bh/2;
   let seed=(Number(g.id)||0)*1.3+(g.name?g.name.length:0);if(!Number.isFinite(seed))seed=0;seed%=6.283;
-  // Halo pulsé pour les alertes (crit/warn) — blob plus large, dilaté/illuminé par le pouls.
-  if(!empty&&disp.halos&&(st==='crit'||st==='warn')){const p=0.5+0.5*Math.sin(pulseT*(st==='crit'?3:1.5));const f=1.12+0.09*p;gBlob(ccx,ccy,rx*f,ry*f,seed);ctx.fillStyle=hexA(gc,0.16+0.16*p);ctx.fill();}
-  // Corps en dégradé radial : dense au centre, fondu total au bord → aucun trait de contour.
-  const base=iHG?0.55:0.42,gr=ctx.createRadialGradient(ccx,ccy,0,ccx,ccy,R);
-  gr.addColorStop(0,hexA(gc,base));gr.addColorStop(0.5,hexA(gc,base*0.65));gr.addColorStop(0.85,hexA(gc,base*0.22));gr.addColorStop(1,hexA(gc,0));
-  gBlob(ccx,ccy,rx,ry,seed);ctx.fillStyle=gr;ctx.fill();
-  // Titre du point (en haut du blob).
+  // Pouls des alertes (crit/warn) : dilate la zone et intensifie le centre.
+  let scl=1,addB=0;
+  if(!empty&&disp.halos&&(st==='crit'||st==='warn')){const p=0.5+0.5*Math.sin(pulseT*(st==='crit'?3:1.5));scl=1+0.14*p;addB=0.12*p;}
+  const RX=Math.max(1,bw/2*1.32*scl),RY=Math.max(1,bh/2*1.32*scl);
+  const base=Math.min(0.85,(iHG?0.6:0.48)+addB);
+  // Espace mis à l'échelle → cercle unité = ellipse RX×RY ; le dégradé s'éteint à 0 au rayon 1.
+  ctx.save();ctx.translate(ccx,ccy);ctx.scale(RX,RY);
+  const fx=0.13*Math.cos(seed),fy=0.11*Math.sin(seed*1.4); // foyer décalé → glow asymétrique, organique
+  const gr=ctx.createRadialGradient(fx,fy,0,0,0,1);
+  gr.addColorStop(0,hexA(gc,base));gr.addColorStop(0.3,hexA(gc,base*0.78));gr.addColorStop(0.6,hexA(gc,base*0.38));gr.addColorStop(0.82,hexA(gc,base*0.15));gr.addColorStop(1,hexA(gc,0));
+  ctx.fillStyle=gr;ctx.beginPath();ctx.arc(0,0,1,0,Math.PI*2);ctx.fill();
+  ctx.restore();
+  // Titre du point (en haut de la zone).
   ctx.fillStyle=mapLight?'rgba(20,25,40,0.92)':'rgba(220,227,245,0.9)';ctx.font=`600 ${Math.max(9,11*scale)*iconScale}px 'Segoe UI',sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(g.name,cx,by+lblH*0.6);
 }
 /* ── Champs de vision (cônes orientables) ───────────────────── */
